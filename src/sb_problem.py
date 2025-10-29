@@ -22,10 +22,10 @@ import simulation
 
 class SB_Problem(Problem):
 
-    def __init__(self, opt_param, cost_curve, drought_type):
+    def __init__(self, opt_param, case_number, drought_type):
         super(SB_Problem, self).__init__(opt_param.nparam, opt_param.nobjs, nconstrs = 0, function=None)
         self.types[:] = [Real(lb, ub) for lb, ub in zip(opt_param.LB[0], opt_param.UB[0])]
-        self.model = simulation.SB(opt_param, cost_curve, drought_type)
+        self.model = simulation.SB(opt_param, case_number, drought_type)
 
         
     def evaluate(self, individual): #individual is a string of param, sim contains all methods and objects

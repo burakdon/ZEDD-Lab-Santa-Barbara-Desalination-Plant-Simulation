@@ -16,6 +16,7 @@ import numpy.matlib as mat
 import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.dates as mdates
+import os
 
 def is_pareto_efficient(costs, return_mask = True):
     """
@@ -43,36 +44,37 @@ def is_pareto_efficient(costs, return_mask = True):
         return is_efficient
     
 
-def plot_pareto(obj, nseeds = 1):
-#    plt.style.use('seaborn-darkgrid')
+def plot_pareto(obj, nseeds = 1, title=None, save_path=None):
+    # compute efficient set
     mask = is_pareto_efficient(np.array(obj))
-    #print(mask)
-    
     objs = []
     for m, o in zip(mask, obj):
         if m:
             objs.append(o)
-        
-    
+
+    plt.figure(figsize=(7, 5))
     if nseeds == 1:
-        
-        plt.scatter([o[0] for o in objs],[-o[1] for o in objs])
-        plt.xlabel( 'cost' )
-        plt.ylabel( '# demand months left in storage (risk)' )
-        
-        #plt.xlim([0, 1500])
-        #plt.ylim([0, 20])
-    else:        
-        for s in range(nseeds): #assuming multiple runs    
-            plt.scatter([o[0] for o in objs[s]],[-o[1] for o in objs[s]])
-            #plt.xlim([0, 1500])
-            #plt.ylim([0, 1500])
-            
-    plt.show()
+        plt.scatter([o[0] for o in objs], [-o[1] for o in objs])
+    else:
+        for s in range(nseeds):
+            plt.scatter([o[0] for o in objs[s]], [-o[1] for o in objs[s]])
+
+    plt.xlabel('cost')
+    plt.ylabel('# demand months left in storage (risk)')
+    if title:
+        plt.title(title)
+
+    if save_path:
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=150)
+        plt.close()
+    else:
+        plt.show()
+    return objs
             
     
     
-def plot_timeseries(log):
+def plot_timeseries(log, title=None, save_path=None):
     n_months = len(log.sc)
     time_years = np.arange(n_months) / 12  # convert months to fractional years
 
@@ -129,5 +131,42 @@ def plot_timeseries(log):
     axs[2].set_xlim(time_years[0], time_years[-1])
     axs[2].set_xticks(np.arange(int(time_years[0]), int(time_years[-1]) + 1, 1))
 
+    if title:
+        fig.suptitle(title, y=1.02)
     plt.tight_layout()
-    plt.show()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+def plot_pareto_overlay(curves, labels=None, title=None, save_path=None):
+    """
+    Overlay multiple Pareto fronts on the same axes.
+
+    Args:
+        curves: list of sequences of [cost, risk] pairs (risk stored as -months in objs, convert to months here)
+        labels: list of legend labels, same length as curves (optional)
+        title: optional plot title
+        save_path: optional file path to save the figure
+    """
+    plt.figure(figsize=(7, 5))
+    for i, objs in enumerate(curves):
+        x = [o[0] for o in objs]
+        y = [-o[1] for o in objs]
+        lab = labels[i] if labels and i < len(labels) else f"curve_{i+1}"
+        plt.scatter(x, y, s=20, label=lab)
+
+    plt.xlabel('cost')
+    plt.ylabel('# demand months left in storage (risk)')
+    if title:
+        plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=150)
+        plt.close()
+    else:
+        plt.show()

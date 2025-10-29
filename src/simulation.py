@@ -16,6 +16,7 @@ import numpy.matlib as mat
 import numba
 from numba import njit
 import random
+from cost_curve_loader import CostCurveLoader
 
 
 class log_results:
@@ -40,7 +41,7 @@ def nsim_equiv_res(s, u, n, s_max):
 
 class SB(object):
    ############# define relevant class parameters
-    def __init__(self, opt_par, cost_curve, drought_type):
+    def __init__(self, opt_par, case_number, drought_type):
         self.T           = 12 # period
         self.gibraltar   = Gibraltar(drought_type)
         self.cachuma     = Cachuma(drought_type)
@@ -66,7 +67,11 @@ class SB(object):
         self.water_sold  = 1430 
         self.efficiency  = 1.0 
         self.time_exp    = 24
-        self.cost_curve  = cost_curve
+        
+        # Load custom cost curve data
+        self.cost_curve_loader = CostCurveLoader()
+        self.case_number = case_number
+        self.cost_curve_data = self.cost_curve_loader.load_cost_curve(case_number)
 
 
 
@@ -190,22 +195,27 @@ class SB(object):
                 s_, r_swp  = nsim_equiv_res(sswp[t], uswp*d, nswp_, smax_sw) #self.swp.integration(sswp[t], uswp, nswp_, d)
                 sswp[t+1] = s_
 
-                if P[0]<0.25:
-            #desal_capacity = 3125/12 #current
-                    fixed_cost = self.cost_curve[0]
-                elif P[0]<0.5:
-            #desal_capacity = 5500/12 #small expansion
-                    fixed_cost = self.cost_curve[0] *1.2 # example: fixed costs are 20% higher in small expansion
-                elif P[0]<0.75:
-            #desal_capacity = 7500/12 #medium expansion
-                    fixed_cost = self.cost_curve[0] *1.4 # example: fixed costs are 40% higher in medium expansion
+                # Determine if current month is summer (May-October) or winter (November-April)
+                month = t % 12
+                is_summer = month >= 4 and month <= 9  # May (4) to October (9)
+                
+                # Get costs from custom cost curve based on production level and season
+                # Use a small epsilon to treat near-zero production as zero to avoid spurious jumps
+                if desal_release > 1e-6:
+                    elec_cost, fixed_cost = self.cost_curve_loader.get_cost_for_production(
+                        self.case_number, desal_release, is_summer
+                    )
                 else:
-            #desal_capacity = 10000/12 #max expansion
-                    fixed_cost = self.cost_curve[0] *1.6 # example: fixed costs are 60% higher in max expansion
-     
+                    # No production, use base fixed cost
+                    if is_summer:
+                        fixed_cost = self.cost_curve_data['summer']['fixed_cost'][0]
+                        elec_cost = 0
+                    else:
+                        fixed_cost = self.cost_curve_data['winter']['fixed_cost'][0]
+                        elec_cost = 0
      
                 # calculation of costs: total costs of running desal plant based on cost curve
-                desal_cost[t] = fixed_cost + self.cost_curve[1] + desal_release
+                desal_cost[t] = fixed_cost + elec_cost
                 
                 
                 # calculation of deficit for penalty
