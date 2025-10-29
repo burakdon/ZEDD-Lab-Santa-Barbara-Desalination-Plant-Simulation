@@ -205,6 +205,9 @@ class SB(object):
                     elec_cost, fixed_cost = self.cost_curve_loader.get_cost_for_production(
                         self.case_number, desal_release, is_summer
                     )
+                    # Add labor cost when producing
+                    labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number)
+                    desal_cost[t] = fixed_cost + elec_cost + labor_cost
                 else:
                     # No production, use base fixed cost
                     if is_summer:
@@ -213,9 +216,14 @@ class SB(object):
                     else:
                         fixed_cost = self.cost_curve_data['winter']['fixed_cost'][0]
                         elec_cost = 0
-     
-                # calculation of costs: total costs of running desal plant based on cost curve
-                desal_cost[t] = fixed_cost + elec_cost
+                    # Option A: No labor when idle
+                    desal_cost[t] = fixed_cost + elec_cost
+                    # Option B: Reduced labor when idle (uncomment to use)
+                    # labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number) * 0.5
+                    # desal_cost[t] = fixed_cost + elec_cost + labor_cost
+                    # Option C: Full labor always (uncomment to use)
+                    # labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number)
+                    # desal_cost[t] = fixed_cost + elec_cost + labor_cost
                 
                 
                 # calculation of deficit for penalty
