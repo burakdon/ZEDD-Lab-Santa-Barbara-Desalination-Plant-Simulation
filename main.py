@@ -6,6 +6,7 @@ Created on Wed Jan 27 17:36:20 2021
 @author: martazaniolo
 """
 import sys
+import argparse
 sys.path.append('src')
 sys.path.append('ptreeopt')
 import simulation
@@ -25,6 +26,7 @@ from platypus import ProcessPoolEvaluator
 import pandas as pd
 import logging
 import os
+from cost_curve_loader import CostCurveLoader
 
 class OptimizationParameters(object):
     def __init__(self):
@@ -69,16 +71,44 @@ def run(opt_par, case_number, drought_type):
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser(description="Run desalination optimization for a given cost curve case.")
+    parser.add_argument(
+        "--case",
+        default="1",
+        help="Case identifier (matches <case>_overall.csv, e.g. '1' or '3mpd_30vessels').",
+    )
+    parser.add_argument(
+        "--drought",
+        default="pers87_sev0.83n_4",
+        help="Drought scenario identifier.",
+    )
+    parser.add_argument(
+        "--list-cases",
+        action="store_true",
+        help="List available cost curve cases and exit.",
+    )
+
+    args = parser.parse_args()
+
+    loader = CostCurveLoader()
+    if args.list_cases:
+        print("Available cost curve cases:")
+        for case in loader.get_available_cases():
+            info = loader.get_case_info(case)
+            scenario = info.get('scenario') if isinstance(info, dict) else None
+            if scenario:
+                print(f"  {info['case_number']} (scenario: {scenario})")
+            else:
+                print(f"  {case}")
+        sys.exit(0)
+
+    case_identifier = args.case
+    drought_type = args.drought
+
     opt_par = OptimizationParameters()
 
-    # Use case number instead of linear cost curve parameters
-    # Case numbers 1-45 correspond to different cost curve scenarios
-    case_number = 1  # You can change this to any case from 1-45
-
-    drought_type = 'pers87_sev0.83n_4'
-    
     # run optimization
-    result = run(opt_par, case_number, drought_type)
+    result = run(opt_par, case_identifier, drought_type)
 
     objs  = []
     param = []
@@ -114,8 +144,8 @@ if __name__ == '__main__':
     
 
     #simulate solution
-    sim_model = SBsim(opt_par, case_number, drought_type)
-    sim = SB(opt_par, case_number, drought_type)
+    sim_model = SBsim(opt_par, case_identifier, drought_type)
+    sim = SB(opt_par, case_identifier, drought_type)
     
     scenario = 8
     
@@ -126,8 +156,8 @@ if __name__ == '__main__':
 
     # save time-series for no-deficit solution
     os.makedirs('result/plots/timeseries', exist_ok=True)
-    ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_number}.png"
-    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_number}", save_path=ts1_path)
+    ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_identifier}.png"
+    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", save_path=ts1_path)
 
     log = []
     ##creat solution structure
@@ -140,30 +170,30 @@ if __name__ == '__main__':
     
 
     #simulate solution
-    sim_model = SBsim(opt_par, case_number, drought_type)
-    sim = SB(opt_par, case_number, drought_type)
+    sim_model = SBsim(opt_par, case_identifier, drought_type)
+    sim = SB(opt_par, case_identifier, drought_type)
     for i in range(scenario): #only plot first timeseries
         log = sim_model.simulate(param_eff[idx_maxdeficit], i)
         solution.sim_model = sim_model
         solution.log.append(log)
 
     # save time-series for max-deficit solution
-    ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_number}.png"
-    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_number}", save_path=ts2_path)
+    ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_identifier}.png"
+    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", save_path=ts2_path)
     
     # creating a Dataframe object
 
-    string = 'result/results_drought' + drought_type + 'case_' + str(case_number) + '.dat'
+    string = 'result/results_drought' + drought_type + 'case_' + str(case_identifier) + '.dat'
     with open(string, 'wb') as f:
         pickle.dump(solution, f)
 
     # save pareto data and plot
     os.makedirs('result/plots/pareto', exist_ok=True)
     os.makedirs('result/data/pareto', exist_ok=True)
-    pareto_png = f"result/plots/pareto/pareto_{drought_type}_case_{case_number}.png"
-    pareto_csv = f"result/data/pareto/pareto_{drought_type}_case_{case_number}.csv"
+    pareto_png = f"result/plots/pareto/pareto_{drought_type}_case_{case_identifier}.png"
+    pareto_csv = f"result/data/pareto/pareto_{drought_type}_case_{case_identifier}.csv"
 
-    eff = plot_pareto(objs_eff, title=f"Pareto — {drought_type}, case {case_number}", save_path=pareto_png)
+    eff = plot_pareto(objs_eff, title=f"Pareto — {drought_type}, case {case_identifier}", save_path=pareto_png)
     # save efficient points to CSV for overlaying later
     df = pd.DataFrame({
         'cost': [o[0] for o in eff],
