@@ -28,10 +28,45 @@ import logging
 import os
 from cost_curve_loader import CostCurveLoader
 
+
+def describe_solution(best_solution):
+    """Return human-readable info about capacity tier and policy params."""
+    p0 = float(best_solution[0]) if best_solution else 0.0
+    montecito_agreement_annual = 1430.0  # AF/year transferred to Montecito
+    montecito_agreement_monthly = montecito_agreement_annual / 12.0
+
+    if p0 < 0.25:
+        name = "current"
+        annual_capacity = 3125.0
+    elif p0 < 0.5:
+        name = "small expansion"
+        annual_capacity = 5500.0
+    elif p0 < 0.75:
+        name = "medium expansion"
+        annual_capacity = 7500.0
+    else:
+        name = "maximum expansion"
+        annual_capacity = 10000.0
+
+    net_annual = annual_capacity - montecito_agreement_annual
+    net_monthly = net_annual / 12.0
+
+    policy_params = best_solution[1:]
+    preview_len = min(6, len(policy_params))
+    preview = ", ".join(f"{v:.3f}" for v in policy_params[:preview_len])
+    if len(policy_params) > preview_len:
+        preview += ", ..."
+
+    summary_lines = [
+        f"Desal expansion tier: {name} ({annual_capacity:.0f} AF/yr gross, {net_annual:.0f} AF/yr net; {net_monthly:.1f} AF/month net)",
+        f"Operating policy parameters: {len(policy_params)} values [ {preview} ]",
+    ]
+    return "\n".join(summary_lines)
+
 class OptimizationParameters(object):
     def __init__(self):
         ###DEMO OPTIMIZATION, use higher values of max_gen and npop if results are not converged
-        self.max_gen  = 200 
+        self.max_gen  = 100 
         self.npop     = 100
         self.nfe      = self.max_gen*self.npop
         self.cores    = 50
@@ -146,6 +181,8 @@ if __name__ == '__main__':
     #simulate solution
     sim_model = SBsim(opt_par, case_identifier, drought_type)
     sim = SB(opt_par, case_identifier, drought_type)
+    print("Selected solution summary:")
+    print(describe_solution(solution.best_solution))
     
     scenario = 8
     
