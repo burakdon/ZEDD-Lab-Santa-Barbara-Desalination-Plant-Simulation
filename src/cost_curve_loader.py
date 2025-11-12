@@ -132,7 +132,35 @@ class CostCurveLoader:
         """Get the capital upgrade cost for a case."""
         cost_data = self.load_cost_curve(case_number)
         return cost_data['overall']['capital_upgrade_cost_usd']
-    
+ 
+    def get_capital_cost_amortized(
+        self,
+        case_number: int,
+        amortization_years: float = 30.0,
+        period: str = "annual",
+    ) -> float:
+        """Return the amortized capital cost for the requested period.
+
+        Args:
+            case_number: Case identifier.
+            amortization_years: Payback period (must be > 0).
+            period: Either "annual" or "monthly".
+
+        Returns:
+            Amortized cost in USD per selected period.
+        """
+        if amortization_years <= 0:
+            raise ValueError("amortization_years must be positive")
+
+        annual_cost = self.get_capital_cost(case_number) / amortization_years
+
+        if period == "annual":
+            return annual_cost
+        if period == "monthly":
+            return annual_cost / 12.0
+
+        raise ValueError("period must be either 'annual' or 'monthly'")
+
     def get_labor_cost(self, case_number: int) -> float:
         """Get the monthly labor cost for a case."""
         cost_data = self.load_cost_curve(case_number)

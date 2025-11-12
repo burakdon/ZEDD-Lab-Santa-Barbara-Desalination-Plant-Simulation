@@ -72,7 +72,13 @@ class SB(object):
         self.cost_curve_loader = CostCurveLoader()
         self.case_number = case_number
         self.cost_curve_data = self.cost_curve_loader.load_cost_curve(case_number)
-
+        # Capital cost amortized annually over a default horizon
+        self.capital_amortization_years = 30
+        self.capital_monthly_cost = self.cost_curve_loader.get_capital_cost_amortized(
+            case_number,
+            amortization_years=self.capital_amortization_years,
+            period="monthly",
+        )
 
 
     def simulate(self, P):
@@ -207,7 +213,7 @@ class SB(object):
                     )
                     # Add labor cost when producing
                     labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number)
-                    desal_cost[t] = fixed_cost + elec_cost + labor_cost
+                    base_cost = fixed_cost + elec_cost + labor_cost
                 else:
                     # No production, use base fixed cost
                     if is_summer:
@@ -217,13 +223,18 @@ class SB(object):
                         fixed_cost = self.cost_curve_data['winter']['fixed_cost'][0]
                         elec_cost = 0
                     # Option A: No labor when idle
-                    desal_cost[t] = fixed_cost + elec_cost
+                    base_cost = fixed_cost + elec_cost
                     # Option B: Reduced labor when idle (uncomment to use)
                     # labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number) * 0.5
-                    # desal_cost[t] = fixed_cost + elec_cost + labor_cost
+                    # base_cost = fixed_cost + elec_cost + labor_cost
                     # Option C: Full labor always (uncomment to use)
                     # labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number)
-                    # desal_cost[t] = fixed_cost + elec_cost + labor_cost
+                    # base_cost = fixed_cost + elec_cost + labor_cost
+
+                desal_cost[t] = base_cost + self.capital_monthly_cost
+                # Option: apply capital charge annually instead of monthly
+                # if t % 12 == 0:
+                #     desal_cost[t] += self.capital_monthly_cost * 12
                 
                 
                 # calculation of deficit for penalty
