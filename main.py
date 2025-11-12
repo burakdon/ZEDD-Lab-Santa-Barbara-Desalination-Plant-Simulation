@@ -28,6 +28,31 @@ import logging
 import os
 from cost_curve_loader import CostCurveLoader
 
+
+def describe_capacity(best_solution):
+    """Return a short string describing the desal expansion tier."""
+    if not best_solution:
+        return "(no solution)"
+
+    p0 = float(best_solution[0])
+    montecito_annual = 1430.0
+
+    if p0 < 0.25:
+        name = "current"
+        gross = 3125.0
+    elif p0 < 0.5:
+        name = "small expansion"
+        gross = 5500.0
+    elif p0 < 0.75:
+        name = "medium expansion"
+        gross = 7500.0
+    else:
+        name = "maximum expansion"
+        gross = 10000.0
+
+    net = gross - montecito_annual
+    return f"Desal expansion tier: {name} ({gross:.0f} AF/yr gross, {net:.0f} AF/yr net)"
+
 class OptimizationParameters(object):
     def __init__(self):
         ###DEMO OPTIMIZATION, use higher values of max_gen and npop if results are not converged
@@ -146,8 +171,7 @@ if __name__ == '__main__':
     #simulate solution
     sim_model = SBsim(opt_par, case_identifier, drought_type)
     sim = SB(opt_par, case_identifier, drought_type)
-    print("Selected solution summary:")
-    print(describe_solution(solution.best_solution))
+    print(describe_capacity(solution.best_solution))
     
     scenario = 8
     
