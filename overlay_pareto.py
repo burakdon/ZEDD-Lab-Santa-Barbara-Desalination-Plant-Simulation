@@ -16,8 +16,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def load_pareto_csv(drought: str, case_number: int):
-    path = f"result/data/pareto/pareto_{drought}_case_{case_number}.csv"
+def load_pareto_csv(drought: str, case_id):
+    path = f"result/data/pareto/pareto_{drought}_case_{case_id}.csv"
     if not os.path.exists(path):
         raise FileNotFoundError(f"Pareto CSV not found: {path}. Run main.py for this case first.")
     df = pd.read_csv(path)
@@ -50,13 +50,17 @@ def overlay(drought: str, cases: list, labels: list = None, out: str = None, tit
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--drought', required=True, help='Drought type string used in saved filenames')
-    p.add_argument('--cases', nargs='+', type=int, required=True, help='List of case numbers to overlay')
+    p.add_argument('--cases', nargs='+', required=True, help='List of case identifiers to overlay')
     p.add_argument('--labels', nargs='*', help='Optional list of labels same length as cases')
     p.add_argument('--out', help='Output PNG path for the overlay plot')
     p.add_argument('--title', help='Custom title for the plot')
     args = p.parse_args()
 
-    overlay(args.drought, args.cases, args.labels, args.out, args.title)
+    cases = [c.strip() for c in args.cases if c.strip()]
+    labels = args.labels
+    if labels:
+        labels = [lab.strip() for lab in labels]
+    overlay(args.drought, cases, labels, args.out, args.title)
 
 
 if __name__ == '__main__':
