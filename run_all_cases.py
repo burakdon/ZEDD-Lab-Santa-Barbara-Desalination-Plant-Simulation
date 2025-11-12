@@ -17,9 +17,10 @@ import pandas as pd
 from main import OptimizationParameters, run
 from plot_optimization import plot_timeseries, plot_pareto, is_pareto_efficient
 from sim_individual import SBsim
+from cost_curve_loader import CostCurveLoader
 
 
-def save_outputs_for_case(opt_par, case_number: int, drought_type: str, results):
+def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
     # Collect solutions
     objs = []
     param = []
@@ -39,12 +40,12 @@ def save_outputs_for_case(opt_par, case_number: int, drought_type: str, results)
     # Save Pareto
     os.makedirs('result/plots/pareto', exist_ok=True)
     os.makedirs('result/data/pareto', exist_ok=True)
-    pareto_png = f"result/plots/pareto/pareto_{drought_type}_case_{case_number}.png"
-    pareto_csv = f"result/data/pareto/pareto_{drought_type}_case_{case_number}.csv"
+    pareto_png = f"result/plots/pareto/pareto_{drought_type}_case_{case_identifier}.png"
+    pareto_csv = f"result/data/pareto/pareto_{drought_type}_case_{case_identifier}.csv"
 
     eff = plot_pareto(
         objs_eff,
-        title=f"Pareto — {drought_type}, case {case_number}",
+        title=f"Pareto — {drought_type}, case {case_identifier}",
         save_path=pareto_png,
     )
     df = pd.DataFrame({
@@ -60,24 +61,24 @@ def save_outputs_for_case(opt_par, case_number: int, drought_type: str, results)
     idx_nodeficit = int(np.argmin(np.array(objs_eff)[:, 1]))
     idx_maxdeficit = int(np.argmax(np.array(objs_eff)[:, 1]))
 
-    sim_model = SBsim(opt_par, case_number, drought_type)
+    sim_model = SBsim(opt_par, case_identifier, drought_type)
 
     # Save one scenario timeseries for nodeficit
     log = sim_model.simulate(param_eff[idx_nodeficit], 0)
     os.makedirs('result/plots/timeseries', exist_ok=True)
-    ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_number}.png"
+    ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_identifier}.png"
     plot_timeseries(
         log,
-        title=f"No-deficit solution — {drought_type}, case {case_number}",
+        title=f"No-deficit solution — {drought_type}, case {case_identifier}",
         save_path=ts1_path,
     )
 
     # Save one scenario timeseries for maxdeficit
     log = sim_model.simulate(param_eff[idx_maxdeficit], 0)
-    ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_number}.png"
+    ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_identifier}.png"
     plot_timeseries(
         log,
-        title=f"Max-deficit solution — {drought_type}, case {case_number}",
+        title=f"Max-deficit solution — {drought_type}, case {case_identifier}",
         save_path=ts2_path,
     )
 
@@ -85,24 +86,46 @@ def save_outputs_for_case(opt_par, case_number: int, drought_type: str, results)
 def main():
     parser = argparse.ArgumentParser(description='Batch-run cost curves and save outputs')
     parser.add_argument('--drought', required=True, help='Drought type, e.g., pers87_sev0.83n_4')
-    parser.add_argument('--cases', nargs='+', required=True, help='"all" or list of case numbers')
+    parser.add_argument('--cases', nargs='+', required=True, help='"all" or list of case identifiers')
+    parser.add_argument('--list-cases', action='store_true', help='List available cost curve cases and exit')
     args = parser.parse_args()
+
+    loader = CostCurveLoader()
+
+    if args.list_cases:
+        print('Available cost curve cases:')
+        for case in loader.get_available_cases():
+            info = loader.get_case_info(case)
+            scenario = info.get('scenario') if isinstance(info, dict) else None
+            if scenario:
+                print(f"  {info['case_number']} (scenario: {scenario})")
+            else:
+                print(f"  {case}")
+        sys.exit(0)
 
     # Resolve case list
     if len(args.cases) == 1 and args.cases[0].lower() == 'all':
-        cases = list(range(1, 46))
+        cases = loader.get_available_cases()
     else:
-        cases = [int(c) for c in args.cases]
+        cases = []
+        for c in args.cases:
+            c = c.strip()
+            if not c:
+                continue
+            if c.isdigit():
+                cases.append(int(c))
+            else:
+                cases.append(c)
 
     drought_type = args.drought
     opt_par = OptimizationParameters()
 
     # Loop over cases sequentially
-    for case_number in cases:
-        print(f"Running case {case_number} for drought {drought_type}...")
-        results = run(opt_par, case_number, drought_type)
-        save_outputs_for_case(opt_par, case_number, drought_type, results)
-        print(f"Completed case {case_number}")
+    for case_identifier in cases:
+        print(f"Running case {case_identifier} for drought {drought_type}...")
+        results = run(opt_par, case_identifier, drought_type)
+        save_outputs_for_case(opt_par, case_identifier, drought_type, results)
+        print(f"Completed case {case_identifier}")
 
 
 if __name__ == '__main__':
