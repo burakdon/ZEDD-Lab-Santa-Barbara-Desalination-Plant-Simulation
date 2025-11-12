@@ -31,8 +31,8 @@ from cost_curve_loader import CostCurveLoader
 class OptimizationParameters(object):
     def __init__(self):
         ###DEMO OPTIMIZATION, use higher values of max_gen and npop if results are not converged
-        self.max_gen  = 100 
-        self.npop     = 50
+        self.max_gen  = 200 
+        self.npop     = 100
         self.nfe      = self.max_gen*self.npop
         self.cores    = 50
         self.nseeds   = 1
