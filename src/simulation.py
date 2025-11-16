@@ -95,16 +95,24 @@ class SB(object):
         sustainable_yield = 1250/12 #contant yield from groundwater
 
 
-        #first policy param P param relates to desal capacity. Desal capacity options are: 3125, 5500, 7500, and 10000 AF/year
-        # 
-        if P[0]<0.25:
-            desal_capacity = 3125/12  - montecito_agreement #current
-        elif P[0]<0.5:
-            desal_capacity = 5500/12  - montecito_agreement #small expansion
-        elif P[0]<0.75:
-            desal_capacity = 7500/12  - montecito_agreement #medium expansion
+        # Calculate desal capacity based on case-specific MPD/vessels or policy parameter
+        mpd, vessels = self.cost_curve_loader.parse_mpd_vessels(self.case_number)
+        
+        if mpd is not None and vessels is not None:
+            # Use case-specific formula: 3125/12 * ((mpd / 3) * (vessel / 30))
+            base_capacity_monthly = 3125 / 12.0
+            capacity_multiplier = (mpd / 3.0) * (vessels / 30.0)
+            desal_capacity = base_capacity_monthly * capacity_multiplier - montecito_agreement
         else:
-            desal_capacity = 10000/12  - montecito_agreement#max expansion
+            # Fallback to legacy policy-based tiers for numeric cases without MPD/vessel info
+            if P[0]<0.25:
+                desal_capacity = 3125/12  - montecito_agreement #current
+            elif P[0]<0.5:
+                desal_capacity = 5500/12  - montecito_agreement #small expansion
+            elif P[0]<0.75:
+                desal_capacity = 7500/12  - montecito_agreement #medium expansion
+            else:
+                desal_capacity = 10000/12  - montecito_agreement#max expansion
         
         # other policy parameters relate to monthly operations. Extract and interpret RBF paramters from param list P
         param, lin_param = set_param(P[1:], self.N, self.M, self.K)

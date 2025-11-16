@@ -92,16 +92,24 @@ class SBsim(object):
         sustainable_yield = 1250/12 #contant yield from groundwater
 
 
-        #first policy param P param relates to desal capacity. Desal capacity options are: 3125, 5500, 7500, and 10000 AF/year
-        # 
-        if P[0]<0.25:
-            desal_capacity = 3125/12 - montecito_agreement
-        elif P[0]<0.5:
-            desal_capacity = 5500/12 - montecito_agreement
-        elif P[0]<0.75:
-            desal_capacity = 7500/12 - montecito_agreement
+        # Calculate desal capacity based on case-specific MPD/vessels or policy parameter
+        mpd, vessels = self.cost_curve_loader.parse_mpd_vessels(self.case_number)
+        
+        if mpd is not None and vessels is not None:
+            # Use case-specific formula: 3125/12 * ((mpd / 3) * (vessel / 30))
+            base_capacity_monthly = 3125 / 12.0
+            capacity_multiplier = (mpd / 3.0) * (vessels / 30.0)
+            desal_capacity = base_capacity_monthly * capacity_multiplier - montecito_agreement
         else:
-            desal_capacity = 10000/12 - montecito_agreement
+            # Fallback to legacy policy-based tiers for numeric cases without MPD/vessel info
+            if P[0]<0.25:
+                desal_capacity = 3125/12 - montecito_agreement
+            elif P[0]<0.5:
+                desal_capacity = 5500/12 - montecito_agreement
+            elif P[0]<0.75:
+                desal_capacity = 7500/12 - montecito_agreement
+            else:
+                desal_capacity = 10000/12 - montecito_agreement
         
         # other policy parameters relate to monthly operations. Extract and interpret RBF paramters from param list P
         param, lin_param = set_param(P[1:], self.N, self.M, self.K)
@@ -242,18 +250,14 @@ class SBsim(object):
                     elec_cost = 0
                 # Option A: No labor when idle
                 base_cost = fixed_cost + elec_cost
-                # Option B: Reduced labor when idle (uncomment to use)
+                # Option B: Reduced labor when idle 
                 # labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number) * 0.5
                 # base_cost = fixed_cost + elec_cost + labor_cost
-                # Option C: Full labor always (uncomment to use)
+                # Option C: Full labor always 
                 # labor_cost = self.cost_curve_loader.get_labor_cost(self.case_number)
                 # base_cost = fixed_cost + elec_cost + labor_cost
 
             desal_cost[t] = base_cost + self.capital_monthly_cost
-            # Option: apply capital charge annually instead of monthly
-            # if t % 12 == 0:
-            #     desal_cost[t] += self.capital_monthly_cost * 12
-            
             
             # calculation of deficit for penalty
             deficit[t+1] = max( 0, demand[t%12] - r_swp - r_c - r_gi - md[t] - desal_release - sustainable_yield)

@@ -119,7 +119,33 @@ def plot_timeseries(log, title=None, save_path=None):
     ax4.set_ylabel('months to day 0')
     ax3.set_title('Objectives')
     
-    ax4.set_ylim(-100, 0)
+    # Bound y-axes to prevent visual artifacts from small changes
+    # For cost: use data range with small padding, but ensure minimum range
+    cost_min, cost_max = np.min(log.desal_cost), np.max(log.desal_cost)
+    cost_range = cost_max - cost_min
+    if cost_range < 1000:  # Minimum range to show variability
+        cost_center = (cost_min + cost_max) / 2.0
+        cost_min = cost_center - 500
+        cost_max = cost_center + 500
+    else:
+        padding = cost_range * 0.05
+        cost_min = max(0, cost_min - padding)
+        cost_max = cost_max + padding
+    ax3.set_ylim(cost_min, cost_max)
+    
+    # For risk: bound to reasonable range (already has -100 to 0, but ensure it fits data)
+    risk_values = -log.jrisk  # Already negated for display
+    risk_min, risk_max = np.min(risk_values), np.max(risk_values)
+    risk_range = risk_max - risk_min
+    if risk_range < 5:  # Minimum range for visibility
+        risk_center = (risk_min + risk_max) / 2.0
+        risk_min = risk_center - 2.5
+        risk_max = risk_center + 2.5
+    else:
+        padding = risk_range * 0.05
+        risk_min = max(-100, risk_min - padding)
+        risk_max = min(0, risk_max + padding)
+    ax4.set_ylim(risk_min, risk_max)
 
     # Combine legends from both y-axes
     lines_3, labels_3 = ax3.get_legend_handles_labels()
