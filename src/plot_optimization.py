@@ -120,7 +120,27 @@ def plot_timeseries(log, title=None, save_path=None, case_number=None, amortizat
     ax3.set_title('Objectives')
     
     # Bound y-axes to prevent visual artifacts from small changes
-    # For cost: use theoretical bounds from CSV cost curves if available
+    # For cost: use data range but ensure minimum range to smooth transitions
+    cost_data_min, cost_data_max = np.min(log.desal_cost), np.max(log.desal_cost)
+    cost_data_mean = np.mean(log.desal_cost)
+    cost_data_range = cost_data_max - cost_data_min
+
+    # Determine minimum required range as percentage of mean
+    # This ensures smooth visualization even when costs oscillate between close levels
+    if cost_data_mean < 1000:
+        min_range_pct = 0.20
+    elif cost_data_mean < 10000:
+        min_range_pct = 0.15
+    elif cost_data_mean < 100000:
+        min_range_pct = 0.10
+    else:
+        min_range_pct = 0.10  # 10% for large costs - increased from 8%
+
+    min_range_absolute = cost_data_mean * min_range_pct
+
+    # Get CSV bounds as outer limits if available
+    cost_min_outer = None
+    cost_max_outer = None
     if case_number is not None:
         try:
             from cost_curve_loader import CostCurveLoader
@@ -128,27 +148,36 @@ def plot_timeseries(log, title=None, save_path=None, case_number=None, amortizat
             cost_min_theoretical, cost_max_theoretical = loader.get_cost_bounds(
                 case_number, amortization_years=amortization_years
             )
-            # Use CSV bounds with small padding (2% on each side)
-            padding = (cost_max_theoretical - cost_min_theoretical) * 0.02
-            cost_min = max(0, cost_min_theoretical - padding)
-            cost_max = cost_max_theoretical + padding
-            ax3.set_ylim(cost_min, cost_max)
+            cost_min_outer = cost_min_theoretical
+            cost_max_outer = cost_max_theoretical
         except (ImportError, ValueError, KeyError, AttributeError):
-            # Fallback to data-based bounds if CSV lookup fails
-            cost_min, cost_max = np.min(log.desal_cost), np.max(log.desal_cost)
-            cost_mean = np.mean(log.desal_cost)
-            padding = max((cost_max - cost_min) * 0.05, cost_mean * 0.02)
-            cost_min = max(0, cost_min - padding)
-            cost_max = cost_max + padding
-            ax3.set_ylim(cost_min, cost_max)
+            pass
+
+    # Calculate y-axis bounds: center on data but ensure minimum range
+    if cost_data_range < min_range_absolute:
+        # Data variation is small - expand range around mean
+        cost_center = cost_data_mean
+        cost_min = cost_center - min_range_absolute / 2.0
+        cost_max = cost_center + min_range_absolute / 2.0
     else:
-        # Fallback: use data-based bounds with adaptive percentage
-        cost_min, cost_max = np.min(log.desal_cost), np.max(log.desal_cost)
-        cost_mean = np.mean(log.desal_cost)
-        padding = max((cost_max - cost_min) * 0.05, cost_mean * 0.02)
-        cost_min = max(0, cost_min - padding)
-        cost_max = cost_max + padding
-        ax3.set_ylim(cost_min, cost_max)
+        # Data has good variation - add padding
+        padding = max(cost_data_range * 0.05, cost_data_mean * 0.02)
+        cost_min = max(0, cost_data_min - padding)
+        cost_max = cost_data_max + padding
+        # Ensure minimum range is still met
+        if (cost_max - cost_min) < min_range_absolute:
+            cost_center = (cost_min + cost_max) / 2.0
+            cost_min = cost_center - min_range_absolute / 2.0
+            cost_max = cost_center + min_range_absolute / 2.0
+
+    # Respect outer bounds from CSV if they exist (don't exceed theoretical limits)
+    if cost_min_outer is not None:
+        cost_min = max(cost_min, cost_min_outer * 0.95)  # Allow 5% below theoretical min
+    if cost_max_outer is not None:
+        cost_max = min(cost_max, cost_max_outer * 1.05)  # Allow 5% above theoretical max
+
+    cost_min = max(0, cost_min)  # Don't go below zero
+    ax3.set_ylim(cost_min, cost_max)
     
     # For risk: bound to reasonable range (already has -100 to 0, but ensure it fits data)
     risk_values = -log.jrisk  # Already negated for display
