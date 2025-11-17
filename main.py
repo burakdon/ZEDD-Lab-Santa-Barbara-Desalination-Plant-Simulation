@@ -29,14 +29,32 @@ import os
 from cost_curve_loader import CostCurveLoader
 
 
-def describe_capacity(best_solution):
+def describe_capacity(best_solution, case_identifier=None):
     """Return a short string describing the desal expansion tier."""
     if not best_solution:
         return "(no solution)"
 
-    p0 = float(best_solution[0])
     montecito_annual = 1430.0
-
+    
+    # Try to get capacity from case identifier if it's a string case (MPD/vessels)
+    if case_identifier is not None:
+        try:
+            from cost_curve_loader import CostCurveLoader
+            loader = CostCurveLoader()
+            mpd, vessels = loader.parse_mpd_vessels(case_identifier)
+            
+            if mpd is not None and vessels is not None:
+                # Use case-specific formula: 3125 * ((mpd / 3) * (vessel / 30))
+                base_capacity_annual = 3125.0
+                capacity_multiplier = (mpd / 3.0) * (vessels / 30.0)
+                gross = base_capacity_annual * capacity_multiplier
+                net = gross - montecito_annual
+                return f"Desal expansion tier: {int(mpd)} MPD / {int(vessels)} vessels ({gross:.0f} AF/yr gross, {net:.0f} AF/yr net)"
+        except (ImportError, ValueError, AttributeError):
+            pass
+    
+    # Fallback to legacy policy-based tiers for numeric cases
+    p0 = float(best_solution[0])
     if p0 < 0.25:
         name = "current"
         gross = 3125.0
@@ -171,7 +189,7 @@ if __name__ == '__main__':
     #simulate solution
     sim_model = SBsim(opt_par, case_identifier, drought_type)
     sim = SB(opt_par, case_identifier, drought_type)
-    print(describe_capacity(solution.best_solution))
+    print(describe_capacity(solution.best_solution, case_identifier=case_identifier))
     
     scenario = 8
     

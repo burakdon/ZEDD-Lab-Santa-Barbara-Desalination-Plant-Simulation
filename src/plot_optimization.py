@@ -129,19 +129,19 @@ def plot_timeseries(log, title=None, save_path=None, case_number=None, amortizat
     # This ensures smooth visualization even when costs oscillate between close levels
     # For large costs, use a larger percentage to prevent rectangular/square-wave patterns
     if cost_data_mean < 1000:
-        min_range_pct = 0.25
+        min_range_pct = 0.30
     elif cost_data_mean < 10000:
-        min_range_pct = 0.20
+        min_range_pct = 0.25
     elif cost_data_mean < 100000:
-        min_range_pct = 0.15
+        min_range_pct = 0.20
     else:
-        min_range_pct = 0.15  # 15% for large costs - significantly increased to smooth transitions
+        min_range_pct = 0.25  # 25% for large costs - significantly increased to smooth transitions
 
     min_range_absolute = cost_data_mean * min_range_pct
     
     # Additionally, ensure absolute minimum range for large costs (prevents tight bounds even with percentage)
     if cost_data_mean >= 100000:
-        min_range_absolute = max(min_range_absolute, 200000)  # At least $200k range for costs > $100k
+        min_range_absolute = max(min_range_absolute, 300000)  # At least $300k range for costs > $100k
 
     # Get CSV bounds as outer limits if available
     cost_min_outer = None
