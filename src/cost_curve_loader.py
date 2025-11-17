@@ -33,7 +33,7 @@ class CostCurveLoader:
         """Load the metadata CSV file if available."""
         metadata_path = os.path.join(self.cost_curves_dir, "metadata.csv")
         if os.path.exists(metadata_path):
-        return pd.read_csv(metadata_path)
+            return pd.read_csv(metadata_path)
         return None
 
     def _build_metadata_case_map(self) -> Dict[str, Dict]:
