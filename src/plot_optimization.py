@@ -74,7 +74,7 @@ def plot_pareto(obj, nseeds = 1, title=None, save_path=None):
             
     
     
-def plot_timeseries(log, title=None, save_path=None):
+def plot_timeseries(log, title=None, save_path=None, case_number=None, amortization_years=30.0):
     n_months = len(log.sc)
     time_years = np.arange(n_months) / 12  # convert months to fractional years
 
@@ -120,40 +120,35 @@ def plot_timeseries(log, title=None, save_path=None):
     ax3.set_title('Objectives')
     
     # Bound y-axes to prevent visual artifacts from small changes
-    # For cost: ensure reasonable range to smooth out oscillations between levels
-    cost_min, cost_max = np.min(log.desal_cost), np.max(log.desal_cost)
-    cost_mean = np.mean(log.desal_cost)
-    cost_range = cost_max - cost_min
-    cost_std = np.std(log.desal_cost)
-    
-    # Adaptive minimum range: use a percentage of mean, but ensure it's meaningful
-    # For very small costs (< 1k): use absolute minimum of 100
-    # For small costs (1k-10k): use 10% of mean
-    # For medium costs (10k-100k): use 5% of mean
-    # For large costs (> 100k): use 3% of mean, but also consider std dev
-    if cost_mean < 1000:
-        min_range_absolute = 100
-    elif cost_mean < 10000:
-        min_range_absolute = cost_mean * 0.10
-    elif cost_mean < 100000:
-        min_range_absolute = cost_mean * 0.05
+    # For cost: use theoretical bounds from CSV cost curves if available
+    if case_number is not None:
+        try:
+            from cost_curve_loader import CostCurveLoader
+            loader = CostCurveLoader()
+            cost_min_theoretical, cost_max_theoretical = loader.get_cost_bounds(
+                case_number, amortization_years=amortization_years
+            )
+            # Use CSV bounds with small padding (2% on each side)
+            padding = (cost_max_theoretical - cost_min_theoretical) * 0.02
+            cost_min = max(0, cost_min_theoretical - padding)
+            cost_max = cost_max_theoretical + padding
+            ax3.set_ylim(cost_min, cost_max)
+        except (ImportError, ValueError, KeyError, AttributeError):
+            # Fallback to data-based bounds if CSV lookup fails
+            cost_min, cost_max = np.min(log.desal_cost), np.max(log.desal_cost)
+            cost_mean = np.mean(log.desal_cost)
+            padding = max((cost_max - cost_min) * 0.05, cost_mean * 0.02)
+            cost_min = max(0, cost_min - padding)
+            cost_max = cost_max + padding
+            ax3.set_ylim(cost_min, cost_max)
     else:
-        # For large costs, use smaller percentage but ensure it's at least 2 std devs if variation exists
-        min_range_absolute = max(cost_mean * 0.03, cost_std * 2.0 if cost_std > 0 else cost_mean * 0.03)
-    
-    if cost_range < min_range_absolute:
-        # Data has small variation - center around mean with minimum range
-        cost_center = cost_mean
-        cost_min = cost_center - min_range_absolute / 2.0
-        cost_max = cost_center + min_range_absolute / 2.0
-        cost_min = max(0, cost_min)  # Don't go below zero
-    else:
-        # Data has good variation - add moderate padding (2-3% of range or 1% of mean, whichever is larger)
-        padding = max(cost_range * 0.03, cost_mean * 0.01)
+        # Fallback: use data-based bounds with adaptive percentage
+        cost_min, cost_max = np.min(log.desal_cost), np.max(log.desal_cost)
+        cost_mean = np.mean(log.desal_cost)
+        padding = max((cost_max - cost_min) * 0.05, cost_mean * 0.02)
         cost_min = max(0, cost_min - padding)
         cost_max = cost_max + padding
-    
-    ax3.set_ylim(cost_min, cost_max)
+        ax3.set_ylim(cost_min, cost_max)
     
     # For risk: bound to reasonable range (already has -100 to 0, but ensure it fits data)
     risk_values = -log.jrisk  # Already negated for display

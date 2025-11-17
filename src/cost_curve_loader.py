@@ -233,6 +233,45 @@ class CostCurveLoader:
         season = 'summer' if is_summer else 'winter'
         return float(cost_data[season]['water_production'][-1])
     
+    def get_cost_bounds(self, case_number: Union[int, str], 
+                       amortization_years: float = 30.0) -> Tuple[float, float]:
+        """
+        Get theoretical min and max monthly costs for a case based on CSV data.
+        
+        Args:
+            case_number: Case identifier
+            amortization_years: Years over which to amortize capital cost
+            
+        Returns:
+            Tuple of (min_cost, max_cost) in USD/month
+        """
+        cost_data = self.load_cost_curve(case_number)
+        
+        # Get capital cost amortized monthly
+        capital_monthly = self.get_capital_cost_amortized(case_number, amortization_years, period="monthly")
+        
+        # Get labor cost (monthly)
+        labor_monthly = self.get_labor_cost(case_number)
+        
+        # Get fixed and electricity costs from both seasons
+        summer_fixed = cost_data['summer']['fixed_cost']
+        summer_elec = cost_data['summer']['electricity_cost']
+        winter_fixed = cost_data['winter']['fixed_cost']
+        winter_elec = cost_data['winter']['electricity_cost']
+        
+        # Minimum cost: no production, use minimum fixed cost + capital (no labor if idle)
+        # Take minimum across seasons
+        min_fixed = min(np.min(summer_fixed), np.min(winter_fixed))
+        min_cost = min_fixed + capital_monthly  # No production, no labor, no electricity
+        
+        # Maximum cost: maximum production with maximum costs + labor + capital
+        # Take maximum across seasons
+        max_fixed = max(np.max(summer_fixed), np.max(winter_fixed))
+        max_elec = max(np.max(summer_elec), np.max(winter_elec))
+        max_cost = max_fixed + max_elec + labor_monthly + capital_monthly
+        
+        return float(min_cost), float(max_cost)
+    
     def parse_mpd_vessels(self, case_number: Union[int, str]) -> Tuple[Optional[float], Optional[float]]:
         """
         Extract MPD and vessel count from case identifier if present.

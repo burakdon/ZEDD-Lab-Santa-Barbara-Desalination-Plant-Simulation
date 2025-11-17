@@ -183,7 +183,8 @@ if __name__ == '__main__':
     # save time-series for no-deficit solution
     os.makedirs('result/plots/timeseries', exist_ok=True)
     ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_identifier}.png"
-    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", save_path=ts1_path)
+    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", 
+                    save_path=ts1_path, case_number=case_identifier)
 
     log = []
     ##creat solution structure
@@ -205,7 +206,8 @@ if __name__ == '__main__':
 
     # save time-series for max-deficit solution
     ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_identifier}.png"
-    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", save_path=ts2_path)
+    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", 
+                    save_path=ts2_path, case_number=case_identifier)
     
     # creating a Dataframe object
 
