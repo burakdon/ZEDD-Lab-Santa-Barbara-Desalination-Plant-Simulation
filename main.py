@@ -37,29 +37,27 @@ def describe_capacity(best_solution, case_identifier):
     p0 = float(best_solution[0])
     montecito_annual = 1430.0
     
-    # Get actual max capacity from cost curve
-    loader = CostCurveLoader()
-    max_summer = loader.get_max_production(case_identifier, is_summer=True)
-    max_winter = loader.get_max_production(case_identifier, is_summer=False)
-    max_capacity_af_month = max(max_summer, max_winter)
-    max_capacity_af_year = max_capacity_af_month * 12
-
-    # Determine tier based on P[0] (matches simulation logic)
+    # Map P[0] to MPD tiers: 3, 4, 6, or 8 MPD
+    # Conversion: 1 MGD ≈ 92 AF/month ≈ 1104 AF/year
     if p0 < 0.25:
-        name = "25% of max"
-        gross_annual = 0.25 * max_capacity_af_year
+        mpd = 3
+        gross_annual = 3 * 1104
+        tier_name = "Tier 1: 3 MPD"
     elif p0 < 0.5:
-        name = "50% of max"
-        gross_annual = 0.5 * max_capacity_af_year
+        mpd = 4
+        gross_annual = 4 * 1104
+        tier_name = "Tier 2: 4 MPD"
     elif p0 < 0.75:
-        name = "75% of max"
-        gross_annual = 0.75 * max_capacity_af_year
+        mpd = 6
+        gross_annual = 6 * 1104
+        tier_name = "Tier 3: 6 MPD"
     else:
-        name = "100% of max"
-        gross_annual = max_capacity_af_year
+        mpd = 8
+        gross_annual = 8 * 1104
+        tier_name = "Tier 4: 8 MPD"
 
     net_annual = gross_annual - montecito_annual
-    return f"Desal expansion tier: {name} ({gross_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net)"
+    return f"Desal expansion tier: {tier_name} ({gross_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net)"
 
 class OptimizationParameters(object):
     def __init__(self):

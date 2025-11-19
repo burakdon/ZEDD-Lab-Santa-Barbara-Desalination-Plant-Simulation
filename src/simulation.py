@@ -94,23 +94,18 @@ class SB(object):
         montecito_agreement = 1430/12 # SB transfers desal water to Montecito
         sustainable_yield = 1250/12 #contant yield from groundwater
 
-        # Get max production capacity from cost curve (in AF/month)
-        # Use max of summer and winter to ensure we capture the true capacity
-        max_summer = self.cost_curve_loader.get_max_production(self.case_number, is_summer=True)
-        max_winter = self.cost_curve_loader.get_max_production(self.case_number, is_summer=False)
-        max_capacity_af_month = max(max_summer, max_winter)
-
-        # First policy param P[0] relates to desal capacity.
-        # Scale P[0] (0-1) to select a fraction of the curve's actual max capacity.
-        # Use discrete tiers for optimization stability: 25%, 50%, 75%, or 100% of max
+        # First policy param P[0] relates to desal capacity expansion tier.
+        # Map P[0] directly to 4 MPD (Million Gallons Per Day) tiers:
+        # Tier 1: 3 MPD, Tier 2: 4 MPD, Tier 3: 6 MPD, Tier 4: 8 MPD
+        # Conversion: 1 MGD ≈ 92 AF/month (1 MGD = ~3.07 AF/day × 30 days/month)
         if P[0] < 0.25:
-            desal_capacity = 0.25 * max_capacity_af_month - montecito_agreement  # 25% of max
+            desal_capacity = 3 * 92 - montecito_agreement   # Tier 1: 3 MPD
         elif P[0] < 0.5:
-            desal_capacity = 0.5 * max_capacity_af_month - montecito_agreement   # 50% of max
+            desal_capacity = 4 * 92 - montecito_agreement   # Tier 2: 4 MPD
         elif P[0] < 0.75:
-            desal_capacity = 0.75 * max_capacity_af_month - montecito_agreement  # 75% of max
+            desal_capacity = 6 * 92 - montecito_agreement   # Tier 3: 6 MPD
         else:
-            desal_capacity = max_capacity_af_month - montecito_agreement         # 100% of max
+            desal_capacity = 8 * 92 - montecito_agreement   # Tier 4: 8 MPD
         
         # other policy parameters relate to monthly operations. Extract and interpret RBF paramters from param list P
         param, lin_param = set_param(P[1:], self.N, self.M, self.K)
