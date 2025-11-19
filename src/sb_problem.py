@@ -32,7 +32,7 @@ class SB_Problem(Problem):
         str_param = individual.variables
         J1, J2 = self.model.simulate(str_param)
 
-        individual.objectives = [J1, J2]
+        individual.objectives[:] = [J1, J2]
 
     def random(self):
         solution = Solution(self)
