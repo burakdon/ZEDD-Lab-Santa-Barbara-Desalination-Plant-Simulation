@@ -27,6 +27,7 @@ import pandas as pd
 import logging
 import os
 from cost_curve_loader import CostCurveLoader
+from capacity_tiers import get_capacity_tier
 
 
 def describe_capacity(best_solution, case_identifier):
@@ -37,27 +38,10 @@ def describe_capacity(best_solution, case_identifier):
     p0 = float(best_solution[0])
     montecito_annual = 1430.0
     
-    # Map P[0] to MPD tiers: 3, 4, 6, or 8 MPD
-    # Conversion: 1 MGD ≈ 92 AF/month ≈ 1104 AF/year
-    if p0 < 0.25:
-        mpd = 3
-        gross_annual = 3 * 1104
-        tier_name = "Tier 1: 3 MPD"
-    elif p0 < 0.5:
-        mpd = 4
-        gross_annual = 4 * 1104
-        tier_name = "Tier 2: 4 MPD"
-    elif p0 < 0.75:
-        mpd = 6
-        gross_annual = 6 * 1104
-        tier_name = "Tier 3: 6 MPD"
-    else:
-        mpd = 8
-        gross_annual = 8 * 1104
-        tier_name = "Tier 4: 8 MPD"
-
+    tier_info = get_capacity_tier(p0)
+    gross_annual = tier_info["gross_annual"]
     net_annual = gross_annual - montecito_annual
-    return f"Desal expansion tier: {tier_name} ({gross_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net)"
+    return f"Desal expansion tier: {tier_info['label']} ({gross_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net)"
 
 class OptimizationParameters(object):
     def __init__(self):
