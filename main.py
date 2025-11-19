@@ -30,6 +30,30 @@ from cost_curve_loader import CostCurveLoader
 from capacity_tiers import get_capacity_tier
 
 
+def parse_case_identifier(case_identifier):
+    """
+    Parse case identifier to extract folder and curve name.
+    Returns (folder, curve_name) where folder can be None for root-level cases.
+    """
+    case_str = str(case_identifier).strip()
+    if '/' in case_str:
+        parts = case_str.split('/', 1)
+        folder = parts[0]
+        curve_name = parts[1]
+        # Extract just the folder name (e.g., "basetariff_baseline" -> "baseline")
+        folder_short = folder.split('_')[-1] if '_' in folder else folder
+        return folder_short, curve_name
+    return None, case_str
+
+
+def format_case_for_filename(case_identifier):
+    """Format case identifier for use in filenames."""
+    folder, curve_name = parse_case_identifier(case_identifier)
+    if folder:
+        return f"{folder}_{curve_name}"
+    return str(case_identifier)
+
+
 def describe_capacity(best_solution, case_identifier):
     """Return a short string describing the desal expansion tier."""
     if not best_solution:
@@ -172,7 +196,8 @@ if __name__ == '__main__':
 
     # save time-series for no-deficit solution
     os.makedirs('result/plots/timeseries', exist_ok=True)
-    ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_identifier}.png"
+    case_filename = format_case_for_filename(case_identifier)
+    ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_filename}.png"
     plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", save_path=ts1_path)
 
     log = []
@@ -194,20 +219,20 @@ if __name__ == '__main__':
         solution.log.append(log)
 
     # save time-series for max-deficit solution
-    ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_identifier}.png"
+    ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_filename}.png"
     plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", save_path=ts2_path)
     
     # creating a Dataframe object
 
-    string = 'result/results_drought' + drought_type + 'case_' + str(case_identifier) + '.dat'
+    string = f'result/results_drought{drought_type}case_{case_filename}.dat'
     with open(string, 'wb') as f:
         pickle.dump(solution, f)
 
     # save pareto data and plot
     os.makedirs('result/plots/pareto', exist_ok=True)
     os.makedirs('result/data/pareto', exist_ok=True)
-    pareto_png = f"result/plots/pareto/pareto_{drought_type}_case_{case_identifier}.png"
-    pareto_csv = f"result/data/pareto/pareto_{drought_type}_case_{case_identifier}.csv"
+    pareto_png = f"result/plots/pareto/pareto_{drought_type}_case_{case_filename}.png"
+    pareto_csv = f"result/data/pareto/pareto_{drought_type}_case_{case_filename}.csv"
 
     eff = plot_pareto(objs_eff, title=f"Pareto — {drought_type}, case {case_identifier}", save_path=pareto_png)
     # save efficient points to CSV for overlaying later

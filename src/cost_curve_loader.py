@@ -47,11 +47,12 @@ class CostCurveLoader:
         return case_map
 
     def _discover_case_files(self) -> Dict[str, Dict[str, str]]:
-        """Discover available case files by scanning the directory."""
+        """Discover available case files by scanning the directory and subfolders."""
         case_files: Dict[str, Dict[str, str]] = {}
         if not os.path.isdir(self.cost_curves_dir):
             return case_files
 
+        # Scan root directory
         for filename in os.listdir(self.cost_curves_dir):
             if not filename.endswith('_summer.csv'):
                 continue
@@ -70,6 +71,32 @@ class CostCurveLoader:
                     'summer': summer_path,
                     'winter': winter_path,
                 }
+
+        # Scan subfolders
+        for item in os.listdir(self.cost_curves_dir):
+            subfolder_path = os.path.join(self.cost_curves_dir, item)
+            if os.path.isdir(subfolder_path) and not item.startswith('.'):
+                for filename in os.listdir(subfolder_path):
+                    if not filename.endswith('_summer.csv'):
+                        continue
+
+                    case_id = filename[:-len('_summer.csv')]
+                    # Store with subfolder prefix: subfolder/case_id
+                    full_case_id = f"{item}/{case_id}"
+                    
+                    overall_name = f"{case_id}_overall.csv"
+                    winter_name = f"{case_id}_winter.csv"
+
+                    overall_path = os.path.join(subfolder_path, overall_name)
+                    summer_path = os.path.join(subfolder_path, filename)
+                    winter_path = os.path.join(subfolder_path, winter_name)
+
+                    if os.path.exists(overall_path) and os.path.exists(winter_path):
+                        case_files[full_case_id] = {
+                            'overall': overall_path,
+                            'summer': summer_path,
+                            'winter': winter_path,
+                        }
 
         return case_files
 
