@@ -92,7 +92,7 @@ class SB(object):
         smax_ca = self.cachuma.smax
         smax_sw = self.swp.smax
 
-        montecito_agreement = 1430/12 # SB transfers desal water to Montecito
+        # montecito_agreement = 1430/12 # SB transfers desal water to Montecito
         sustainable_yield = 1250/12 #contant yield from groundwater
 
         tier_info = get_capacity_tier(P[0])
