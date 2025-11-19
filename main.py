@@ -29,47 +29,37 @@ import os
 from cost_curve_loader import CostCurveLoader
 
 
-def describe_capacity(best_solution, case_identifier=None):
+def describe_capacity(best_solution, case_identifier):
     """Return a short string describing the desal expansion tier."""
     if not best_solution:
         return "(no solution)"
 
+    p0 = float(best_solution[0])
     montecito_annual = 1430.0
     
-    # Try to get capacity from case identifier if it's a string case (MPD/vessels)
-    if case_identifier is not None:
-        try:
-            from cost_curve_loader import CostCurveLoader
-            loader = CostCurveLoader()
-            mpd, vessels = loader.parse_mpd_vessels(case_identifier)
-            
-            if mpd is not None and vessels is not None:
-                # Use case-specific formula: 3125 * ((mpd / 3) * (vessel / 30))
-                base_capacity_annual = 3125.0
-                capacity_multiplier = (mpd / 3.0) * (vessels / 30.0)
-                gross = base_capacity_annual * capacity_multiplier
-                net = gross - montecito_annual
-                return f"Desal expansion tier: {int(mpd)} MPD / {int(vessels)} vessels ({gross:.0f} AF/yr gross, {net:.0f} AF/yr net)"
-        except (ImportError, ValueError, AttributeError):
-            pass
-    
-    # Fallback to legacy policy-based tiers for numeric cases
-    p0 = float(best_solution[0])
-    if p0 < 0.25:
-        name = "current"
-        gross = 3125.0
-    elif p0 < 0.5:
-        name = "small expansion"
-        gross = 5500.0
-    elif p0 < 0.75:
-        name = "medium expansion"
-        gross = 7500.0
-    else:
-        name = "maximum expansion"
-        gross = 10000.0
+    # Get actual max capacity from cost curve
+    loader = CostCurveLoader()
+    max_summer = loader.get_max_production(case_identifier, is_summer=True)
+    max_winter = loader.get_max_production(case_identifier, is_summer=False)
+    max_capacity_af_month = max(max_summer, max_winter)
+    max_capacity_af_year = max_capacity_af_month * 12
 
-    net = gross - montecito_annual
-    return f"Desal expansion tier: {name} ({gross:.0f} AF/yr gross, {net:.0f} AF/yr net)"
+    # Determine tier based on P[0] (matches simulation logic)
+    if p0 < 0.25:
+        name = "25% of max"
+        gross_annual = 0.25 * max_capacity_af_year
+    elif p0 < 0.5:
+        name = "50% of max"
+        gross_annual = 0.5 * max_capacity_af_year
+    elif p0 < 0.75:
+        name = "75% of max"
+        gross_annual = 0.75 * max_capacity_af_year
+    else:
+        name = "100% of max"
+        gross_annual = max_capacity_af_year
+
+    net_annual = gross_annual - montecito_annual
+    return f"Desal expansion tier: {name} ({gross_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net)"
 
 class OptimizationParameters(object):
     def __init__(self):
@@ -189,7 +179,7 @@ if __name__ == '__main__':
     #simulate solution
     sim_model = SBsim(opt_par, case_identifier, drought_type)
     sim = SB(opt_par, case_identifier, drought_type)
-    print(describe_capacity(solution.best_solution, case_identifier=case_identifier))
+    print(describe_capacity(solution.best_solution, case_identifier))
     
     scenario = 8
     
@@ -201,8 +191,7 @@ if __name__ == '__main__':
     # save time-series for no-deficit solution
     os.makedirs('result/plots/timeseries', exist_ok=True)
     ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_identifier}.png"
-    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", 
-                    save_path=ts1_path, case_number=case_identifier)
+    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", save_path=ts1_path)
 
     log = []
     ##creat solution structure
@@ -224,8 +213,7 @@ if __name__ == '__main__':
 
     # save time-series for max-deficit solution
     ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_identifier}.png"
-    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", 
-                    save_path=ts2_path, case_number=case_identifier)
+    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", save_path=ts2_path)
     
     # creating a Dataframe object
 

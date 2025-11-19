@@ -94,25 +94,23 @@ class SB(object):
         montecito_agreement = 1430/12 # SB transfers desal water to Montecito
         sustainable_yield = 1250/12 #contant yield from groundwater
 
+        # Get max production capacity from cost curve (in AF/month)
+        # Use max of summer and winter to ensure we capture the true capacity
+        max_summer = self.cost_curve_loader.get_max_production(self.case_number, is_summer=True)
+        max_winter = self.cost_curve_loader.get_max_production(self.case_number, is_summer=False)
+        max_capacity_af_month = max(max_summer, max_winter)
 
-        # Calculate desal capacity based on case-specific MPD/vessels or policy parameter
-        mpd, vessels = self.cost_curve_loader.parse_mpd_vessels(self.case_number)
-        
-        if mpd is not None and vessels is not None:
-            # Use case-specific formula: 3125/12 * ((mpd / 3) * (vessel / 30))
-            base_capacity_monthly = 3125 / 12.0
-            capacity_multiplier = (mpd / 3.0) * (vessels / 30.0)
-            desal_capacity = base_capacity_monthly * capacity_multiplier - montecito_agreement
+        # First policy param P[0] relates to desal capacity.
+        # Scale P[0] (0-1) to select a fraction of the curve's actual max capacity.
+        # Use discrete tiers for optimization stability: 25%, 50%, 75%, or 100% of max
+        if P[0] < 0.25:
+            desal_capacity = 0.25 * max_capacity_af_month - montecito_agreement  # 25% of max
+        elif P[0] < 0.5:
+            desal_capacity = 0.5 * max_capacity_af_month - montecito_agreement   # 50% of max
+        elif P[0] < 0.75:
+            desal_capacity = 0.75 * max_capacity_af_month - montecito_agreement  # 75% of max
         else:
-            # Fallback to legacy policy-based tiers for numeric cases without MPD/vessel info
-            if P[0]<0.25:
-                desal_capacity = 3125/12  - montecito_agreement #current
-            elif P[0]<0.5:
-                desal_capacity = 5500/12  - montecito_agreement #small expansion
-            elif P[0]<0.75:
-                desal_capacity = 7500/12  - montecito_agreement #medium expansion
-            else:
-                desal_capacity = 10000/12  - montecito_agreement#max expansion
+            desal_capacity = max_capacity_af_month - montecito_agreement         # 100% of max
         
         # other policy parameters relate to monthly operations. Extract and interpret RBF paramters from param list P
         param, lin_param = set_param(P[1:], self.N, self.M, self.K)

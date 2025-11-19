@@ -10,7 +10,6 @@ linear mx+b cost curves.
 import pandas as pd
 import numpy as np
 import os
-import re
 from typing import Dict, Tuple, Optional, Union
 
 class CostCurveLoader:
@@ -194,7 +193,7 @@ class CostCurveLoader:
         """Get the capital upgrade cost for a case."""
         cost_data = self.load_cost_curve(case_number)
         return cost_data['overall']['capital_upgrade_cost_usd']
-    
+ 
     def get_capital_cost_amortized(
         self,
         case_number: Union[int, str],
@@ -232,74 +231,3 @@ class CostCurveLoader:
         cost_data = self.load_cost_curve(case_number)
         season = 'summer' if is_summer else 'winter'
         return float(cost_data[season]['water_production'][-1])
-    
-    def get_cost_bounds(self, case_number: Union[int, str], 
-                       amortization_years: float = 30.0) -> Tuple[float, float]:
-        """
-        Get theoretical min and max monthly costs for a case based on CSV data.
-        
-        Args:
-            case_number: Case identifier
-            amortization_years: Years over which to amortize capital cost
-            
-        Returns:
-            Tuple of (min_cost, max_cost) in USD/month
-        """
-        cost_data = self.load_cost_curve(case_number)
-        
-        # Get capital cost amortized monthly
-        capital_monthly = self.get_capital_cost_amortized(case_number, amortization_years, period="monthly")
-        
-        # Get labor cost (monthly)
-        labor_monthly = self.get_labor_cost(case_number)
-        
-        # Get fixed and electricity costs from both seasons
-        summer_fixed = cost_data['summer']['fixed_cost']
-        summer_elec = cost_data['summer']['electricity_cost']
-        winter_fixed = cost_data['winter']['fixed_cost']
-        winter_elec = cost_data['winter']['electricity_cost']
-        
-        # Minimum cost: no production, use minimum fixed cost + capital (no labor if idle)
-        # Take minimum across seasons
-        min_fixed = min(np.min(summer_fixed), np.min(winter_fixed))
-        min_cost = min_fixed + capital_monthly  # No production, no labor, no electricity
-        
-        # Maximum cost: maximum production with maximum costs + labor + capital
-        # Take maximum across seasons
-        max_fixed = max(np.max(summer_fixed), np.max(winter_fixed))
-        max_elec = max(np.max(summer_elec), np.max(winter_elec))
-        max_cost = max_fixed + max_elec + labor_monthly + capital_monthly
-        
-        return float(min_cost), float(max_cost)
-    
-    def parse_mpd_vessels(self, case_number: Union[int, str]) -> Tuple[Optional[float], Optional[float]]:
-        """
-        Extract MPD and vessel count from case identifier if present.
-        
-        Args:
-            case_number: Case identifier (e.g., '3mpd_30vessels' or '16')
-            
-        Returns:
-            Tuple of (mpd, vessels) if parseable, else (None, None)
-        """
-        case_str = str(case_number).strip()
-        
-        # Try to match pattern like "3mpd_30vessels" or "4mpd_36vessels"
-        match = re.match(r'^(\d+)mpd[_-](\d+)vessels?$', case_str, re.IGNORECASE)
-        if match:
-            mpd = float(match.group(1))
-            vessels = float(match.group(2))
-            return mpd, vessels
-        
-        # Check metadata if available
-        case_id = self._normalize_case_id(case_number)
-        if case_id in self._metadata_case_map:
-            metadata = self._metadata_case_map[case_id]
-            # If metadata has these fields, use them (assuming they exist)
-            if 'mpd' in metadata and 'vessels' in metadata:
-                try:
-                    return float(metadata['mpd']), float(metadata['vessels'])
-                except (ValueError, TypeError, KeyError):
-                    pass
-        
-        return None, None

@@ -74,7 +74,7 @@ def plot_pareto(obj, nseeds = 1, title=None, save_path=None):
             
     
     
-def plot_timeseries(log, title=None, save_path=None, case_number=None, amortization_years=30.0):
+def plot_timeseries(log, title=None, save_path=None):
     n_months = len(log.sc)
     time_years = np.arange(n_months) / 12  # convert months to fractional years
 
@@ -119,94 +119,19 @@ def plot_timeseries(log, title=None, save_path=None, case_number=None, amortizat
     ax4.set_ylabel('months to day 0')
     ax3.set_title('Objectives')
     
-    # Bound y-axes to prevent visual artifacts from small changes
-    # For cost: use data range but ensure minimum range to smooth transitions
-    cost_data_min, cost_data_max = np.min(log.desal_cost), np.max(log.desal_cost)
-    cost_data_mean = np.mean(log.desal_cost)
-    cost_data_range = cost_data_max - cost_data_min
-
-    # Determine minimum required range as percentage of mean
-    # This ensures smooth visualization even when costs oscillate between close levels
-    # For large costs, use a larger percentage to prevent rectangular/square-wave patterns
-    if cost_data_mean < 1000:
-        min_range_pct = 0.30
-    elif cost_data_mean < 10000:
-        min_range_pct = 0.25
-    elif cost_data_mean < 100000:
-        min_range_pct = 0.20
+    # Set bounds for cost axis to prevent zigzag artifacts from small changes
+    cost_data = log.desal_cost if hasattr(log, 'desal_cost') and len(log.desal_cost) > 0 else [0]
+    cost_min, cost_max = np.min(cost_data), np.max(cost_data)
+    cost_range = cost_max - cost_min
+    if cost_range > 0:
+        # Add 10% padding on each side
+        cost_padding = cost_range * 0.1
+        ax3.set_ylim(max(0, cost_min - cost_padding), cost_max + cost_padding)
     else:
-        min_range_pct = 0.25  # 25% for large costs - significantly increased to smooth transitions
-
-    min_range_absolute = cost_data_mean * min_range_pct
+        # If no variation, set a small range around the value
+        ax3.set_ylim(max(0, cost_min * 0.9), cost_max * 1.1 if cost_max > 0 else 1)
     
-    # Additionally, ensure absolute minimum range for large costs (prevents tight bounds even with percentage)
-    if cost_data_mean >= 100000:
-        min_range_absolute = max(min_range_absolute, 300000)  # At least $300k range for costs > $100k
-
-    # Get CSV bounds as outer limits if available
-    cost_min_outer = None
-    cost_max_outer = None
-    if case_number is not None:
-        try:
-            from cost_curve_loader import CostCurveLoader
-            loader = CostCurveLoader()
-            cost_min_theoretical, cost_max_theoretical = loader.get_cost_bounds(
-                case_number, amortization_years=amortization_years
-            )
-            cost_min_outer = cost_min_theoretical
-            cost_max_outer = cost_max_theoretical
-        except (ImportError, ValueError, KeyError, AttributeError):
-            pass
-
-    # Calculate y-axis bounds: center on data but ensure minimum range
-    if cost_data_range < min_range_absolute:
-        # Data variation is small - expand range around mean
-        cost_center = cost_data_mean
-        cost_min = cost_center - min_range_absolute / 2.0
-        cost_max = cost_center + min_range_absolute / 2.0
-    else:
-        # Data has good variation - add padding
-        padding = max(cost_data_range * 0.05, cost_data_mean * 0.02)
-        cost_min = max(0, cost_data_min - padding)
-        cost_max = cost_data_max + padding
-        # Ensure minimum range is still met
-        if (cost_max - cost_min) < min_range_absolute:
-            cost_center = (cost_min + cost_max) / 2.0
-            cost_min = cost_center - min_range_absolute / 2.0
-            cost_max = cost_center + min_range_absolute / 2.0
-
-    # Respect outer bounds from CSV if they exist, but allow more flexibility
-    # If CSV bounds would constrain us too much, prioritize smooth visualization
-    if cost_min_outer is not None and cost_max_outer is not None:
-        csv_range = cost_max_outer - cost_min_outer
-        # If CSV range is larger than our calculated range, use it as outer limit
-        # Otherwise, allow some flexibility to ensure minimum range is met
-        if csv_range > (cost_max - cost_min):
-            # CSV range is bigger - use it as outer bounds but allow some flexibility
-            cost_min = max(cost_min, cost_min_outer * 0.90)  # Allow 10% below theoretical min
-            cost_max = min(cost_max, cost_max_outer * 1.10)  # Allow 10% above theoretical max
-        # If CSV range is smaller, prioritize minimum range requirement over strict CSV bounds
-    elif cost_min_outer is not None:
-        cost_min = max(cost_min, cost_min_outer * 0.90)
-    elif cost_max_outer is not None:
-        cost_max = min(cost_max, cost_max_outer * 1.10)
-
-    cost_min = max(0, cost_min)  # Don't go below zero
-    ax3.set_ylim(cost_min, cost_max)
-    
-    # For risk: bound to reasonable range (already has -100 to 0, but ensure it fits data)
-    risk_values = -log.jrisk  # Already negated for display
-    risk_min, risk_max = np.min(risk_values), np.max(risk_values)
-    risk_range = risk_max - risk_min
-    if risk_range < 5:  # Minimum range for visibility
-        risk_center = (risk_min + risk_max) / 2.0
-        risk_min = risk_center - 2.5
-        risk_max = risk_center + 2.5
-    else:
-        padding = risk_range * 0.05
-        risk_min = max(-100, risk_min - padding)
-        risk_max = min(0, risk_max + padding)
-    ax4.set_ylim(risk_min, risk_max)
+    ax4.set_ylim(-100, 0)
 
     # Combine legends from both y-axes
     lines_3, labels_3 = ax3.get_legend_handles_labels()

@@ -71,7 +71,6 @@ def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
         log,
         title=f"No-deficit solution — {drought_type}, case {case_identifier}",
         save_path=ts1_path,
-        case_number=case_identifier,
     )
 
     # Save one scenario timeseries for maxdeficit
@@ -81,7 +80,6 @@ def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
         log,
         title=f"Max-deficit solution — {drought_type}, case {case_identifier}",
         save_path=ts2_path,
-        case_number=case_identifier,
     )
 
 
