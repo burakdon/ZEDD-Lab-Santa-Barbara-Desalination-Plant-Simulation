@@ -120,16 +120,31 @@ def plot_timeseries(log, title=None, save_path=None):
     ax3.set_title('Objectives')
     
     # Set bounds for cost axis to prevent zigzag artifacts from small changes
+    # Use more generous padding and round to nice numbers for consistent scaling across runs
     cost_data = log.desal_cost if hasattr(log, 'desal_cost') and len(log.desal_cost) > 0 else [0]
     cost_min, cost_max = np.min(cost_data), np.max(cost_data)
     cost_range = cost_max - cost_min
+    
     if cost_range > 0:
-        # Add 10% padding on each side
-        cost_padding = cost_range * 0.1
-        ax3.set_ylim(max(0, cost_min - cost_padding), cost_max + cost_padding)
+        # Add 30% padding on each side to smooth out variations between runs
+        cost_padding = cost_range * 0.3
+        y_min = max(0, cost_min - cost_padding)
+        y_max = cost_max + cost_padding
+        # Round to nice numbers to keep axis consistent
+        # Round min down and max up to nearest 50k for cleaner display
+        y_min = np.floor(y_min / 50000) * 50000
+        y_max = np.ceil(y_max / 50000) * 50000
+        ax3.set_ylim(y_min, y_max)
     else:
-        # If no variation, set a small range around the value
-        ax3.set_ylim(max(0, cost_min * 0.9), cost_max * 1.1 if cost_max > 0 else 1)
+        # If no variation, set a reasonable range around the value (20% padding)
+        if cost_max > 0:
+            y_min = max(0, cost_max * 0.8)
+            y_max = cost_max * 1.2
+            y_min = np.floor(y_min / 50000) * 50000
+            y_max = np.ceil(y_max / 50000) * 50000
+            ax3.set_ylim(y_min, y_max)
+        else:
+            ax3.set_ylim(0, 100000)
     
     ax4.set_ylim(-100, 0)
 
