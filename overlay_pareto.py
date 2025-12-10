@@ -137,7 +137,7 @@ def get_colors_by_capacity(cases):
 
 
 def overlay(drought: str, cases: list, labels: list = None, out: str = None, title: str = None):
-    plt.figure(figsize=(10, 8))  # Larger figure size for bigger plot area
+    plt.figure(figsize=(12, 10))  # Larger figure size for bigger plot area
     labs = labels if labels and len(labels) == len(cases) else [f"case {c}" for c in cases]
 
     # Get colors based on capacity (yellow to dark blue gradient)
@@ -181,7 +181,7 @@ def overlay(drought: str, cases: list, labels: list = None, out: str = None, tit
     if out:
         os.makedirs(os.path.dirname(out), exist_ok=True)
         # Use bbox_inches='tight' to ensure legend is included in saved image
-        plt.savefig(out, dpi=150, bbox_inches='tight')
+        plt.savefig(out, dpi=500, bbox_inches='tight')
         print(f"Saved overlay plot to: {out}")
     else:
         plt.show()
