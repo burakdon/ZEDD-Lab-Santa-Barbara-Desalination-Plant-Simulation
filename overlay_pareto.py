@@ -19,7 +19,9 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 import numpy as np
+from src.cost_curve_loader import CostCurveLoader
 
 
 def parse_case_identifier(case_identifier):
@@ -61,89 +63,93 @@ def load_pareto_csv(drought: str, case_id):
     return df
 
 
-# Color palette for 6 MPD/vessel combinations
-CURVE_COLORS = {
-    '3mpd_30vessels': '#d62728',  # Red
-    '3mpd_36vessels': '#ff7f0e',  # Orange
-    '4mpd_30vessels': '#2ca02c',  # Green
-    '4mpd_36vessels': '#1f77b4',  # Blue
-    '6mpd_36vessels': '#9467bd',  # Purple
-    '8mpd_36vessels': '#17becf',  # Teal
-}
-
-
-def get_base_curve_name(case_identifier):
-    """Extract the base curve name (MPD/vessel identifier) from case identifier."""
-    folder, curve_name = parse_case_identifier(case_identifier)
-    return curve_name
-
-
-def mute_color(color_hex, saturation_reduction=0.5, brightness_increase=0.1):
+def get_capacity_for_case(case_identifier, loader):
     """
-    Convert a hex color to a muted version.
-    
-    Args:
-        color_hex: Hex color string (e.g., '#d62728')
-        saturation_reduction: Amount to reduce saturation (0-1)
-        brightness_increase: Amount to increase brightness (0-1)
+    Get the maximum production capacity (AF/month) for a case from its cost curve.
     
     Returns:
-        Muted hex color string
+        Maximum capacity in AF/month
     """
-    # Convert hex to RGB (0-1 range)
-    rgb = mcolors.hex2color(color_hex)
-    
-    # Convert RGB to HSV
-    hsv = mcolors.rgb_to_hsv(rgb)
-    
-    # Reduce saturation and increase brightness
-    hsv[1] = max(0, hsv[1] - saturation_reduction)
-    hsv[2] = min(1, hsv[2] + brightness_increase)
-    
-    # Convert back to RGB then hex
-    rgb_muted = mcolors.hsv_to_rgb(hsv)
-    return mcolors.rgb2hex(rgb_muted)
+    try:
+        max_summer = loader.get_max_production(case_identifier, is_summer=True)
+        max_winter = loader.get_max_production(case_identifier, is_summer=False)
+        return max(max_summer, max_winter)
+    except Exception as e:
+        print(f"Warning: Could not load capacity for case {case_identifier}: {e}")
+        return None
 
 
-def get_color_for_curve(case_identifier):
+def get_colors_by_capacity(cases):
     """
-    Get color for a curve based on its type (baseline/flexible) and MPD/vessel identifier.
+    Generate colors for curves based on their capacity values.
+    Uses a gradient from yellow (low capacity) to dark blue (high capacity).
     
     Returns:
-        (color, is_baseline): Color hex string and boolean indicating if it's baseline
+        Dictionary mapping case_identifier to (color_rgb, capacity_value)
     """
-    folder, curve_name = parse_case_identifier(case_identifier)
+    loader = CostCurveLoader()
     
-    # Get base color for this curve type
-    base_color = CURVE_COLORS.get(curve_name, '#808080')  # Default to gray if not found
+    # Get capacities for all cases
+    capacities = {}
+    for case in cases:
+        cap = get_capacity_for_case(case, loader)
+        if cap is not None:
+            capacities[case] = cap
     
-    # Determine if it's baseline or flexible
-    is_baseline = folder is not None and 'baseline' in folder.lower()
+    if not capacities:
+        # Fallback: return gray for all if no capacities found
+        return {case: (mcolors.hex2color('#808080'), 0) for case in cases}
     
-    if is_baseline:
-        return base_color, True
+    # Create colormap: yellow (low) to dark blue (high)
+    # Yellow: #FFFF00, Dark Blue: #000080
+    min_cap = min(capacities.values())
+    max_cap = max(capacities.values())
+    
+    # Normalize capacities to [0, 1] range
+    normalized_caps = {}
+    if max_cap > min_cap:
+        for case, cap in capacities.items():
+            normalized_caps[case] = (cap - min_cap) / (max_cap - min_cap)
     else:
-        # Mute the color for flexible curves
-        muted_color = mute_color(base_color)
-        return muted_color, False
+        # All capacities are the same
+        normalized_caps = {case: 0.5 for case in capacities.keys()}
+    
+    # Create custom colormap from yellow to dark blue
+    colors_yellow_to_blue = ['#FFFF00', '#0080FF', '#000080']  # Yellow, Medium Blue, Dark Blue
+    n_bins = 256
+    cmap = mcolors.LinearSegmentedColormap.from_list('yellow_to_blue', colors_yellow_to_blue, N=n_bins)
+    
+    # Map normalized capacities to colors
+    color_map = {}
+    for case in cases:
+        if case in normalized_caps:
+            norm_val = normalized_caps[case]
+            color_rgba = cmap(norm_val)
+            color_map[case] = (color_rgba[:3], capacities[case])  # RGB tuple and capacity value
+        else:
+            color_map[case] = (mcolors.hex2color('#808080'), 0)  # Gray for missing data
+    
+    return color_map
 
 
 def overlay(drought: str, cases: list, labels: list = None, out: str = None, title: str = None):
     plt.figure(figsize=(7, 5))
     labs = labels if labels and len(labels) == len(cases) else [f"case {c}" for c in cases]
 
+    # Get colors based on capacity (yellow to dark blue gradient)
+    color_map = get_colors_by_capacity(cases)
+
     for case, lab in zip(cases, labs):
         df = load_pareto_csv(drought, case)
-        color, is_baseline = get_color_for_curve(case)
+        color_rgb, capacity = color_map.get(case, (mcolors.hex2color('#808080'), 0))
         
-        # Use filled markers for baseline, outlined markers for flexible
-        if is_baseline:
-            plt.scatter(df['cost'], df['risk_months_supply'], s=22, 
-                       c=color, label=lab, marker='o', alpha=0.7, edgecolors='black', linewidths=0.5)
-        else:
-            plt.scatter(df['cost'], df['risk_months_supply'], s=22,
-                       c=color, label=lab, marker='o', alpha=0.7, 
-                       edgecolors=color, linewidths=1.5, facecolors='none')
+        # Convert RGB tuple to hex for matplotlib
+        color_hex = mcolors.rgb2hex(color_rgb)
+        
+        # All curves use the same style now, colored by capacity
+        plt.scatter(df['cost'], df['risk_months_supply'], s=22, 
+                   c=color_hex, label=f"{lab} ({capacity:.0f} AF/mo)", 
+                   marker='o', alpha=0.7, edgecolors='black', linewidths=0.5)
 
     plt.xlabel('cost')
     plt.ylabel('# demand months left in storage (risk)')

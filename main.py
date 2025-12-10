@@ -27,7 +27,7 @@ import pandas as pd
 import logging
 import os
 from cost_curve_loader import CostCurveLoader
-from capacity_tiers import get_capacity_tier
+from src.cost_curve_loader import CostCurveLoader
 
 
 def parse_case_identifier(case_identifier):
@@ -55,17 +55,20 @@ def format_case_for_filename(case_identifier):
 
 
 def describe_capacity(best_solution, case_identifier):
-    """Return a short string describing the desal expansion tier."""
+    """Return a short string describing the desal capacity from cost curve."""
     if not best_solution:
         return "(no solution)"
 
-    p0 = float(best_solution[0])
-    montecito_annual = 1430.0
+    # Read capacity directly from cost curve file (fixed capacity, not optimized)
+    loader = CostCurveLoader()
+    max_summer = loader.get_max_production(case_identifier, is_summer=True)
+    max_winter = loader.get_max_production(case_identifier, is_summer=False)
+    max_capacity_monthly = max(max_summer, max_winter)
+    max_capacity_annual = max_capacity_monthly * 12.0
     
-    tier_info = get_capacity_tier(p0)
-    gross_annual = tier_info["gross_annual"]
-    net_annual = gross_annual - montecito_annual
-    return f"Desal expansion tier: {tier_info['label']} ({gross_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net)"
+    montecito_annual = 1430.0
+    net_annual = max_capacity_annual - montecito_annual
+    return f"Desal capacity: {max_capacity_annual:.0f} AF/yr gross, {net_annual:.0f} AF/yr net (from cost curve)"
 
 class OptimizationParameters(object):
     def __init__(self):

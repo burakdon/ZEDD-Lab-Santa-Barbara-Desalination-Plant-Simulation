@@ -17,7 +17,6 @@ import numba
 from numba import njit
 import random
 from cost_curve_loader import CostCurveLoader
-from capacity_tiers import get_capacity_tier
 
 
 class log_results:
@@ -95,9 +94,11 @@ class SB(object):
         # montecito_agreement = 1430/12 # SB transfers desal water to Montecito
         sustainable_yield = 1250/12 #contant yield from groundwater
 
-        tier_info = get_capacity_tier(P[0])
-        gross_capacity = tier_info["gross_month"]
-        desal_capacity = gross_capacity #- montecito_agreement
+        # Read capacity directly from cost curve file (fixed capacity, not optimized)
+        # Use max of summer and winter to get true maximum capacity
+        max_summer = self.cost_curve_loader.get_max_production(self.case_number, is_summer=True)
+        max_winter = self.cost_curve_loader.get_max_production(self.case_number, is_summer=False)
+        desal_capacity = max(max_summer, max_winter)
         
         # other policy parameters relate to monthly operations. Extract and interpret RBF paramters from param list P
         param, lin_param = set_param(P[1:], self.N, self.M, self.K)
