@@ -137,7 +137,7 @@ def get_colors_by_capacity(cases):
 
 
 def overlay(drought: str, cases: list, labels: list = None, out: str = None, title: str = None):
-    plt.figure(figsize=(10, 5))  # Wider figure to accommodate legend
+    plt.figure(figsize=(8, 6))  # Standard size, extra height for bottom legend
     labs = labels if labels and len(labels) == len(cases) else [f"case {c}" for c in cases]
 
     # Get colors based on capacity (yellow to dark blue gradient)
@@ -160,11 +160,11 @@ def overlay(drought: str, cases: list, labels: list = None, out: str = None, tit
     if title:
         plt.title(title)
     
-    # Place legend outside the plot area to avoid covering data
-    # Use smaller font and 2 columns for better layout
-    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', 
-               fontsize=8, ncol=2, framealpha=0.9, columnspacing=1.0)
-    plt.tight_layout(rect=[0, 0, 0.85, 1])  # Leave space on right for legend
+    # Place legend at the bottom of the plot with multiple columns
+    # Use smaller font and 3 columns for better horizontal layout
+    plt.legend(bbox_to_anchor=(0.5, -0.15), loc='upper center', 
+               fontsize=8, ncol=3, framealpha=0.9, columnspacing=1.0)
+    plt.tight_layout(rect=[0, 0.15, 1, 1])  # Leave space at bottom for legend
 
     if out:
         os.makedirs(os.path.dirname(out), exist_ok=True)
