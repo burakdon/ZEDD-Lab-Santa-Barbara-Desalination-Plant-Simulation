@@ -16,12 +16,16 @@ If labels are omitted, labels default to case numbers.
 
 import argparse
 import os
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 import numpy as np
-from src.cost_curve_loader import CostCurveLoader
+
+# Add src to path and import directly to avoid triggering src/__init__.py
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from cost_curve_loader import CostCurveLoader
 
 
 def parse_case_identifier(case_identifier):
