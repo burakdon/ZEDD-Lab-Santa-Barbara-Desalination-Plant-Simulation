@@ -162,13 +162,14 @@ def overlay(drought: str, cases: list, labels: list = None, out: str = None, tit
     
     # Place legend outside the plot area to avoid covering data
     # Use smaller font and 2 columns for better layout
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', 
+    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', 
                fontsize=8, ncol=2, framealpha=0.9, columnspacing=1.0)
-    plt.tight_layout(rect=[0, 0, 0.68, 1])  # Leave space on right for legend
+    plt.tight_layout(rect=[0, 0, 0.85, 1])  # Leave space on right for legend
 
     if out:
         os.makedirs(os.path.dirname(out), exist_ok=True)
-        plt.savefig(out, dpi=150)
+        # Use bbox_inches='tight' to ensure legend is included in saved image
+        plt.savefig(out, dpi=150, bbox_inches='tight')
         print(f"Saved overlay plot to: {out}")
     else:
         plt.show()
