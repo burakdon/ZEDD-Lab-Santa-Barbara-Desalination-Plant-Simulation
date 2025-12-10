@@ -150,10 +150,22 @@ def overlay(drought: str, cases: list, labels: list = None, out: str = None, tit
         # Convert RGB tuple to hex for matplotlib
         color_hex = mcolors.rgb2hex(color_rgb)
         
-        # All curves use the same style now, colored by capacity
-        plt.scatter(df['cost'], df['risk_months_supply'], s=22, 
-                   c=color_hex, label=f"{lab} ({capacity:.0f} AF/mo)", 
-                   marker='o', alpha=0.7, edgecolors='black', linewidths=0.5)
+        # Determine if it's baseline or flexible
+        folder, curve_name = parse_case_identifier(case)
+        is_baseline = folder is not None and 'baseline' in folder.lower()
+        
+        # Use filled markers for baseline, outlined markers for flexible
+        if is_baseline:
+            # Baseline: filled markers with black edges
+            plt.scatter(df['cost'], df['risk_months_supply'], s=22, 
+                       c=color_hex, label=f"{lab} ({capacity:.0f} AF/mo)", 
+                       marker='o', alpha=0.7, edgecolors='black', linewidths=0.5)
+        else:
+            # Flexible: outlined/hollow markers with colored edges
+            plt.scatter(df['cost'], df['risk_months_supply'], s=22,
+                       facecolors='none', edgecolors=color_hex, 
+                       label=f"{lab} ({capacity:.0f} AF/mo)",
+                       marker='o', alpha=0.7, linewidths=1.5)
 
     plt.xlabel('cost')
     plt.ylabel('# demand months left in storage (risk)')
