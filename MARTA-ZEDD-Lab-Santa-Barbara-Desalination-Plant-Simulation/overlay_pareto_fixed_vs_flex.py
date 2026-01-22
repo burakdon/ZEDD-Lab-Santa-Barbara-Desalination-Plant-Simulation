@@ -91,16 +91,16 @@ def get_color_for_curve(case_identifier: str) -> Tuple[str, bool]:
     return mute_color(base_color), False
 
 
-def _candidate_flex_paths(drought: str, case_id: str) -> List[str]:
+def _candidate_flex_paths(drought: str, case_id: str, base_dir: str = "result/data/pareto") -> List[str]:
     case_filename = format_case_for_filename(case_id)
     return [
-        os.path.join("result", "data", "pareto", f"pareto_{drought}_case_{case_filename}.csv"),
-        os.path.join("result", "data", "pareto", f"pareto_{drought}_case_{case_id}.csv"),
+        os.path.join(base_dir, f"pareto_{drought}_case_{case_filename}.csv"),
+        os.path.join(base_dir, f"pareto_{drought}_case_{case_id}.csv"),
     ]
 
 
-def load_flex_pareto_csv(drought: str, case_id: str) -> pd.DataFrame:
-    tried = _candidate_flex_paths(drought, case_id)
+def load_flex_pareto_csv(drought: str, case_id: str, flex_dir: str = "result/data/pareto") -> pd.DataFrame:
+    tried = _candidate_flex_paths(drought, case_id, base_dir=flex_dir)
     path = None
     for pth in tried:
         if os.path.exists(pth):
@@ -108,7 +108,9 @@ def load_flex_pareto_csv(drought: str, case_id: str) -> pd.DataFrame:
             break
     if path is None:
         raise FileNotFoundError(
-            "Flex Pareto CSV not found for case '{}'. Tried:\n  - {}".format(case_id, "\n  - ".join(tried))
+            "Flex Pareto CSV not found for case '{}' in directory '{}'. Tried:\n  - {}".format(
+                case_id, flex_dir, "\n  - ".join(tried)
+            )
         )
 
     df = pd.read_csv(path)
@@ -287,17 +289,19 @@ def overlay_fixed_vs_flex(
     cost_stat: str = "mean",
     connect_fixed: bool = True,
     quiet: bool = False,
+    flex_dir: str = "result/data/pareto",
 ):
     fixed_summary_path = find_fixed_summary_csv(fixed_summary, drought)
     if not quiet:
         print(f"[INFO] Fixed summary: {fixed_summary_path}")
+        print(f"[INFO] Flexible results directory: {flex_dir}")
 
     plt.figure(figsize=(8, 6))
 
     for case in cases:
         color, is_baseline = get_color_for_curve(case)
 
-        flex = load_flex_pareto_csv(drought, case)
+        flex = load_flex_pareto_csv(drought, case, flex_dir=flex_dir)
         if not quiet:
             print(f"[INFO] Flex points for {case}: {len(flex)}")
 
@@ -373,6 +377,8 @@ def main():
     p.add_argument("--drought", required=True, help="Drought string used in saved filenames.")
     p.add_argument("--cases", nargs="+", required=True, help="Case identifiers to overlay.")
     p.add_argument("--fixed-summary", default=None, help="Path to fixed summary CSV (optional).")
+    p.add_argument("--flex-dir", default="result/data/pareto", 
+                   help="Directory containing flexible Pareto CSV files (default: result/data/pareto)")
     p.add_argument("--fixed-fractions", nargs="*", default=None, help="Optional fractions to plot, e.g., 1.0 0.8 0.6 0.4 0.2")
     p.add_argument("--risk-stat", default="mean", choices=["mean", "p10", "p50", "p90"], help="Which risk statistic to use from fixed summary (default: mean).")
     p.add_argument("--cost-stat", default="mean", choices=["mean", "p10", "p50", "p90"], help="Which cost statistic to use from fixed summary (default: mean).")
@@ -397,6 +403,7 @@ def main():
         cost_stat=args.cost_stat,
         connect_fixed=(not args.no_connect_fixed),
         quiet=args.quiet,
+        flex_dir=args.flex_dir,
     )
 
 
