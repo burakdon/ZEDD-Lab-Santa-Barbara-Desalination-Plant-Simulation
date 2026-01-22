@@ -169,6 +169,16 @@ def load_flex_from_summary(summary_csv: str, case_id: str, cost_stat: str = "mea
             f"Example case values: {sample}"
         )
     
+    # If fraction column exists, filter out rows with fraction values
+    # (flexible optimization results should not have fraction, or have fraction=None/NaN)
+    if "fraction" in sel.columns:
+        # Keep rows where fraction is NaN/None (flexible optimization results)
+        # or if all rows have fraction, use all of them (backward compatibility)
+        if sel["fraction"].isna().any():
+            sel = sel[sel["fraction"].isna()]
+        # If no NaN fractions, assume all rows are flexible optimization results
+        # (the caller should filter fixed fraction results separately)
+    
     # Extract cost and risk columns (ignore fraction if present)
     out = sel[[cost_col, risk_col]].copy()
     out = out.rename(columns={cost_col: "cost", risk_col: "risk_months_supply"})
