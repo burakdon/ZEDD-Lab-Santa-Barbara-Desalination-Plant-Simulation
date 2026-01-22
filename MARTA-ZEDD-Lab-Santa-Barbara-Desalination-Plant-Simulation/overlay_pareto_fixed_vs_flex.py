@@ -99,7 +99,97 @@ def _candidate_flex_paths(drought: str, case_id: str, base_dir: str = "result/da
     ]
 
 
-def load_flex_pareto_csv(drought: str, case_id: str, flex_dir: str = "result/data/pareto") -> pd.DataFrame:
+def load_flex_from_summary(summary_csv: str, case_id: str, cost_stat: str = "mean", risk_stat: str = "mean") -> pd.DataFrame:
+    """
+    Load flexible Pareto points from a summary.csv file.
+    Filters by case_id and extracts all points (ignoring fraction if present).
+    """
+    df = pd.read_csv(summary_csv)
+    
+    # Find case column
+    case_col = None
+    for c in ["case", "case_id", "case_identifier", "case_name", "case_label", "curve", "curve_id"]:
+        if c in df.columns:
+            case_col = c
+            break
+    if case_col is None:
+        raise KeyError(f"Flex summary {summary_csv} missing case id column. Found: {list(df.columns)}")
+    
+    # Find cost and risk columns
+    stat = risk_stat.lower().strip()
+    cstat = cost_stat.lower().strip()
+    
+    cost_candidates = [
+        f"cost_{cstat}",
+        f"Jcost_{cstat}",
+        "cost_mean",
+        "Jcost_mean",
+        "cost",
+        "Jcost",
+        "total_cost_mean",
+        "total_cost",
+    ]
+    risk_candidates = [
+        f"risk_months_{stat}",
+        f"risk_months_supply_{stat}",
+        f"risk_{stat}",
+        "risk_months_mean",
+        "risk_months_supply_mean",
+        "risk_mean",
+        "risk_months_supply",
+        "risk",
+        "risk_months",
+        "Jrisk_mean",
+        "Jrisk",
+    ]
+    
+    cost_col = _pick_col(df, cost_candidates, "cost")
+    risk_col = _pick_col(df, risk_candidates, "risk")
+    
+    # Filter for this case - try exact match first
+    sel = df[df[case_col].astype(str) == str(case_id)]
+    if sel.empty:
+        alt = format_case_for_filename(case_id)
+        sel = df[df[case_col].astype(str) == str(alt)]
+    if sel.empty:
+        # Try matching by case_label if it contains the curve name
+        folder_short, curve_name = parse_case_identifier(case_id)
+        sel = df[df[case_col].astype(str).str.contains(curve_name, regex=False)]
+        if folder_short and not sel.empty:
+            # Further filter by folder (baseline/flexible)
+            sel2 = sel[sel[case_col].astype(str).str.contains(folder_short, regex=False)]
+            if not sel2.empty:
+                sel = sel2
+    
+    if sel.empty:
+        uniq = df[case_col].astype(str).unique()
+        sample = ", ".join(sorted(uniq)[:20])
+        raise ValueError(
+            f"No flex results found for case '{case_id}' in {summary_csv}. "
+            f"Example case values: {sample}"
+        )
+    
+    # Extract cost and risk columns (ignore fraction if present)
+    out = sel[[cost_col, risk_col]].copy()
+    out = out.rename(columns={cost_col: "cost", risk_col: "risk_months_supply"})
+    out["cost"] = pd.to_numeric(out["cost"], errors="coerce")
+    out["risk_months_supply"] = pd.to_numeric(out["risk_months_supply"], errors="coerce")
+    return out.dropna(subset=["cost", "risk_months_supply"])
+
+
+def load_flex_pareto_csv(drought: str, case_id: str, flex_dir: str = None, flex_summary: str = None, cost_stat: str = "mean", risk_stat: str = "mean") -> pd.DataFrame:
+    """
+    Load flexible Pareto points from either:
+    1. A summary.csv file (if flex_summary is provided)
+    2. Traditional Pareto CSV files (if flex_dir is provided or as fallback)
+    """
+    if flex_summary:
+        return load_flex_from_summary(flex_summary, case_id, cost_stat, risk_stat)
+    
+    # Fall back to traditional Pareto CSV files
+    if flex_dir is None:
+        flex_dir = "result/data/pareto"
+    
     tried = _candidate_flex_paths(drought, case_id, base_dir=flex_dir)
     path = None
     for pth in tried:
@@ -289,19 +379,25 @@ def overlay_fixed_vs_flex(
     cost_stat: str = "mean",
     connect_fixed: bool = True,
     quiet: bool = False,
-    flex_dir: str = "result/data/pareto",
+    flex_dir: str = None,
+    flex_summary: str = None,
 ):
     fixed_summary_path = find_fixed_summary_csv(fixed_summary, drought)
     if not quiet:
         print(f"[INFO] Fixed summary: {fixed_summary_path}")
-        print(f"[INFO] Flexible results directory: {flex_dir}")
+        if flex_summary:
+            print(f"[INFO] Flexible results from summary: {flex_summary}")
+        elif flex_dir:
+            print(f"[INFO] Flexible results directory: {flex_dir}")
+        else:
+            print(f"[INFO] Flexible results directory: result/data/pareto (default)")
 
     plt.figure(figsize=(8, 6))
 
     for case in cases:
         color, is_baseline = get_color_for_curve(case)
 
-        flex = load_flex_pareto_csv(drought, case, flex_dir=flex_dir)
+        flex = load_flex_pareto_csv(drought, case, flex_dir=flex_dir, flex_summary=flex_summary, cost_stat=cost_stat, risk_stat=risk_stat)
         if not quiet:
             print(f"[INFO] Flex points for {case}: {len(flex)}")
 
@@ -377,8 +473,8 @@ def main():
     p.add_argument("--drought", required=True, help="Drought string used in saved filenames.")
     p.add_argument("--cases", nargs="+", required=True, help="Case identifiers to overlay.")
     p.add_argument("--fixed-summary", default=None, help="Path to fixed summary CSV (optional).")
-    p.add_argument("--flex-dir", default="result/data/pareto", 
-                   help="Directory containing flexible Pareto CSV files (default: result/data/pareto)")
+    p.add_argument("--flex-summary", default=None, help="Path to flexible results summary CSV (optional).")
+    p.add_argument("--flex-dir", default=None, help="Directory containing flexible Pareto CSV files (alternative to --flex-summary)")
     p.add_argument("--fixed-fractions", nargs="*", default=None, help="Optional fractions to plot, e.g., 1.0 0.8 0.6 0.4 0.2")
     p.add_argument("--risk-stat", default="mean", choices=["mean", "p10", "p50", "p90"], help="Which risk statistic to use from fixed summary (default: mean).")
     p.add_argument("--cost-stat", default="mean", choices=["mean", "p10", "p50", "p90"], help="Which cost statistic to use from fixed summary (default: mean).")
@@ -404,6 +500,7 @@ def main():
         connect_fixed=(not args.no_connect_fixed),
         quiet=args.quiet,
         flex_dir=args.flex_dir,
+        flex_summary=args.flex_summary,
     )
 
 
