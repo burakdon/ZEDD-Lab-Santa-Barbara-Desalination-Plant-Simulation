@@ -350,7 +350,7 @@ def overlay_fixed_vs_flex(
     if title:
         plt.title(title)
 
-    plt.legend(fontsize=7, ncol=1, frameon=True)
+    plt.legend(fontsize=7, ncol=6, frameon=True, loc='upper center', bbox_to_anchor=(0.5, -0.12))
     plt.tight_layout()
 
     if out:
