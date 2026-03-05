@@ -17,6 +17,11 @@ CASES = sorted({
 
 FOLDERS = ["basetariff_baseline", "basetariff_flexible"]
 
+# Toggle: exclude fixed cost to see electricity cost differences more clearly
+# Set to True to plot only electricity_cost (variable cost)
+# Set to False to plot electricity_cost + fixed_cost (total operational cost)
+EXCLUDE_FIXED_COST = Truw  # Change to True to exclude fixed cost
+
 def load_case(root, folder, case):
     base = os.path.join(root, folder)
     overall = pd.read_csv(os.path.join(base, f"{case}_overall.csv"))
@@ -41,49 +46,58 @@ for case in CASES:
     fig, axes = plt.subplots(2, 3, figsize=(13, 7))
     fig.suptitle(f"Old vs new cost curves — {case}")
 
+    # Helper function to compute cost
+    def get_cost(df):
+        if EXCLUDE_FIXED_COST:
+            return df["electricity_cost_usd_month"]
+        else:
+            return df["electricity_cost_usd_month"] + df["fixed_cost_usd_month"]
+    
+    cost_label = "electricity cost (USD/month)" if EXCLUDE_FIXED_COST else "op cost (USD/month)"
+
     # Baseline summer
     ax = axes[0, 0]
     ds = data["basetariff_baseline"]
     ax.plot(ds["old_summer"]["water_production_AF_month"],
-            ds["old_summer"]["electricity_cost_usd_month"] + ds["old_summer"]["fixed_cost_usd_month"],
+            get_cost(ds["old_summer"]),
             label="old", color="C0")
     ax.plot(ds["new_summer"]["water_production_AF_month"],
-            ds["new_summer"]["electricity_cost_usd_month"] + ds["new_summer"]["fixed_cost_usd_month"],
+            get_cost(ds["new_summer"]),
             label="new", color="C1")
     ax.set_title("Baseline — summer")
-    ax.set_ylabel("op cost (USD/month)")
+    ax.set_ylabel(cost_label)
     ax.legend()
 
     # Baseline winter
     ax = axes[1, 0]
     ax.plot(ds["old_winter"]["water_production_AF_month"],
-            ds["old_winter"]["electricity_cost_usd_month"] + ds["old_winter"]["fixed_cost_usd_month"],
+            get_cost(ds["old_winter"]),
             label="old", color="C0")
     ax.plot(ds["new_winter"]["water_production_AF_month"],
-            ds["new_winter"]["electricity_cost_usd_month"] + ds["new_winter"]["fixed_cost_usd_month"],
+            get_cost(ds["new_winter"]),
             label="new", color="C1")
     ax.set_title("Baseline — winter")
-    ax.set_ylabel("op cost (USD/month)")
+    ax.set_ylabel(cost_label)
     ax.set_xlabel("AF/month")
 
     # Flexible summer
     ax = axes[0, 1]
     ds = data["basetariff_flexible"]
     ax.plot(ds["old_summer"]["water_production_AF_month"],
-            ds["old_summer"]["electricity_cost_usd_month"] + ds["old_summer"]["fixed_cost_usd_month"],
+            get_cost(ds["old_summer"]),
             label="old", color="C0")
     ax.plot(ds["new_summer"]["water_production_AF_month"],
-            ds["new_summer"]["electricity_cost_usd_month"] + ds["new_summer"]["fixed_cost_usd_month"],
+            get_cost(ds["new_summer"]),
             label="new", color="C1")
     ax.set_title("Flexible — summer")
 
     # Flexible winter
     ax = axes[1, 1]
     ax.plot(ds["old_winter"]["water_production_AF_month"],
-            ds["old_winter"]["electricity_cost_usd_month"] + ds["old_winter"]["fixed_cost_usd_month"],
+            get_cost(ds["old_winter"]),
             label="old", color="C0")
     ax.plot(ds["new_winter"]["water_production_AF_month"],
-            ds["new_winter"]["electricity_cost_usd_month"] + ds["new_winter"]["fixed_cost_usd_month"],
+            get_cost(ds["new_winter"]),
             label="new", color="C1")
     ax.set_title("Flexible — winter")
     ax.set_xlabel("AF/month")
