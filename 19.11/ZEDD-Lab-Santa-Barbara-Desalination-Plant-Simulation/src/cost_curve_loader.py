@@ -22,6 +22,12 @@ class CostCurveLoader:
         Args:
             cost_curves_dir: Directory containing the cost curve CSV files
         """
+        # Allow selecting a specific cost-curve subset (e.g., "new_data" or "old_data")
+        # via the COST_CURVES_SET environment variable, without changing call sites.
+        subset = os.environ.get("COST_CURVES_SET")
+        if subset:
+            cost_curves_dir = os.path.join(cost_curves_dir, subset)
+
         self.cost_curves_dir = cost_curves_dir
         self.metadata = self._load_metadata()
         self._metadata_case_map = self._build_metadata_case_map()
