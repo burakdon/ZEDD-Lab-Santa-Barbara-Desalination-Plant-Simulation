@@ -20,7 +20,7 @@ FOLDERS = ["basetariff_baseline", "basetariff_flexible"]
 # Toggle: exclude fixed cost to see electricity cost differences more clearly
 # Set to True to plot only electricity_cost (variable cost)
 # Set to False to plot electricity_cost + fixed_cost (total operational cost)
-EXCLUDE_FIXED_COST = Truw  # Change to True to exclude fixed cost
+EXCLUDE_FIXED_COST = True  # Change to True to exclude fixed cost
 
 def load_case(root, folder, case):
     base = os.path.join(root, folder)
