@@ -89,7 +89,7 @@ def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
     sim_model = SBsim(opt_par, case_identifier, drought_type)
 
     # Save one scenario timeseries for nodeficit
-    log = sim_model.simulate(param_eff[idx_nodeficit], 0)
+    log = sim_model.simulate(param_eff[idx_nodeficit], 6)
     os.makedirs('result/plots/timeseries', exist_ok=True)
     case_filename = format_case_for_filename(case_identifier)
     ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_filename}.png"
@@ -100,7 +100,7 @@ def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
     )
 
     # Save one scenario timeseries for maxdeficit
-    log = sim_model.simulate(param_eff[idx_maxdeficit], 0)
+    log = sim_model.simulate(param_eff[idx_maxdeficit], 6)
     ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_filename}.png"
     plot_timeseries(
         log,
