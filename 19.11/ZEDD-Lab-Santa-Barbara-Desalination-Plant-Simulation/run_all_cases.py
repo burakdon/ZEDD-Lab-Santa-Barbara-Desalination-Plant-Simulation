@@ -21,6 +21,7 @@ from plot_optimization import (
     plot_pareto,
     is_pareto_efficient,
     select_pareto_timeseries_indices,
+    save_timeseries_log_csv,
 )
 from sim_individual import SBsim
 from cost_curve_loader import CostCurveLoader
@@ -119,6 +120,18 @@ def save_outputs_for_case(
         ),
         save_path=ts1_path,
     )
+    save_timeseries_log_csv(
+        log,
+        ts1_path.replace(".png", ".csv"),
+        metadata={
+            "drought": drought_type,
+            "case": str(case_identifier),
+            "hydrologic_scenario_index": ts_s,
+            "pareto_policy_index": idx_ts_a,
+            "timeseries_slot": "midfront_primary",
+            "source": "run_all_cases.py",
+        },
+    )
 
     log = sim_model.simulate(param_eff[idx_ts_b], ts_s)
     ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_filename}.png"
@@ -129,6 +142,18 @@ def save_outputs_for_case(
             f"case {case_identifier}, scenario {ts_s}"
         ),
         save_path=ts2_path,
+    )
+    save_timeseries_log_csv(
+        log,
+        ts2_path.replace(".png", ".csv"),
+        metadata={
+            "drought": drought_type,
+            "case": str(case_identifier),
+            "hydrologic_scenario_index": ts_s,
+            "pareto_policy_index": idx_ts_b,
+            "timeseries_slot": "midfront_secondary",
+            "source": "run_all_cases.py",
+        },
     )
 
 

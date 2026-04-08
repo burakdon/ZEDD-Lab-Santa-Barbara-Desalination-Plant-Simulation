@@ -30,7 +30,7 @@ if REPO_ROOT not in sys.path:
 
 from main import OptimizationParameters
 from cost_curve_loader import CostCurveLoader
-from plot_optimization import plot_timeseries
+from plot_optimization import plot_timeseries, save_timeseries_log_csv
 
 from fixed_desal_experiment.fixed_sb import SBFixed, SBsimFixed
 
@@ -202,6 +202,18 @@ def main():
                     log,
                     title=f"Fixed fraction {frac:.2f} — {drought_type}, case {case_identifier}",
                     save_path=ts_path,
+                )
+                save_timeseries_log_csv(
+                    log,
+                    ts_path.replace(".png", ".csv"),
+                    metadata={
+                        "drought": drought_type,
+                        "case": str(case_identifier),
+                        "hydrologic_scenario_index": 0,
+                        "fixed_desal_fraction": float(frac),
+                        "experiment": "fixed_desal",
+                        "source": "run_all_cases_fixed.py",
+                    },
                 )
 
         # Per-case response curves

@@ -24,6 +24,7 @@ from plot_optimization import (
     plot_pareto,
     plot_timeseries,
     select_pareto_timeseries_indices,
+    save_timeseries_log_csv,
 )
 import matplotlib.pyplot as plt
 import pickle
@@ -221,6 +222,18 @@ if __name__ == '__main__':
         ),
         save_path=ts1_path,
     )
+    save_timeseries_log_csv(
+        log,
+        ts1_path.replace(".png", ".csv"),
+        metadata={
+            "drought": drought_type,
+            "case": str(case_identifier),
+            "hydrologic_scenario_index": ts_s,
+            "pareto_policy_index": idx_ts_a,
+            "timeseries_slot": "midfront_primary",
+            "source": "main.py",
+        },
+    )
 
     ##creat solution structure
     solution = Solution()
@@ -248,7 +261,19 @@ if __name__ == '__main__':
         ),
         save_path=ts2_path,
     )
-    
+    save_timeseries_log_csv(
+        log,
+        ts2_path.replace(".png", ".csv"),
+        metadata={
+            "drought": drought_type,
+            "case": str(case_identifier),
+            "hydrologic_scenario_index": ts_s,
+            "pareto_policy_index": idx_ts_b,
+            "timeseries_slot": "midfront_secondary",
+            "source": "main.py",
+        },
+    )
+
     # creating a Dataframe object
 
     string = f'result/results_drought{drought_type}case_{case_filename}.dat'

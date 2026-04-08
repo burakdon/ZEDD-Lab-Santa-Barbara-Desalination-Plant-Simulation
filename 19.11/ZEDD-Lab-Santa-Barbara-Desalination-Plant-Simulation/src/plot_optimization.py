@@ -87,6 +87,94 @@ def select_pareto_timeseries_indices(objs_eff):
     return int(order_d[0]), int(order_d[1])
 
 
+def save_timeseries_log_csv(log, csv_path, metadata=None):
+    """
+    Save monthly series used by plot_timeseries to a CSV (one file per companion PNG).
+
+    Columns align with the three panels: storage (AF), releases/production (AF/month),
+    cost and risk. Optional metadata dict keys are repeated on every row for provenance.
+    """
+    n = len(log.sc)
+
+    def as_col(name, arr):
+        a = np.asarray(arr, dtype=float).reshape(-1)
+        if a.size != n:
+            raise ValueError(
+                f"timeseries column '{name}' length {a.size} != n_months {n}"
+            )
+        return a
+
+    sc = as_col("storage_cachuma_af", log.sc)
+    sgi = as_col("storage_gibraltar_af", log.sgi)
+    sswp = as_col("storage_swp_af", log.sswp)
+    desal = as_col("desal_production_af_month", log.desal_production)
+    rc = as_col("release_cachuma_af_month", log.rc)
+    rgi = as_col("release_gibraltar_af_month", log.rgi)
+    rswp = as_col("release_swp_af_month", log.rswp)
+    dcost = as_col("desal_cost_usd_month", log.desal_cost)
+    jrisk = as_col("jrisk_months_supply", log.jrisk)
+
+    if hasattr(log, "deficit") and log.deficit is not None and len(log.deficit) > 0:
+        deficit = np.asarray(log.deficit, dtype=float).reshape(-1)
+        if deficit.size != n:
+            deficit = np.full(n, np.nan)
+    else:
+        deficit = np.full(n, np.nan)
+
+    cap = log.desal_capac
+    if isinstance(cap, (list, tuple, np.ndarray)):
+        cap = float(np.asarray(cap, dtype=float).ravel()[0])
+    else:
+        cap = float(cap)
+    desal_cap_col = np.full(n, cap)
+
+    month = np.arange(n, dtype=int)
+    year_frac = month / 12.0
+
+    dem = np.asarray(log.demand, dtype=float).ravel()
+    if dem.size == 0:
+        demand_m = np.full(n, np.nan)
+    else:
+        demand_m = np.array([dem[t % dem.size] for t in range(n)], dtype=float)
+
+    plot_risk_neg = -jrisk
+
+    df = pd.DataFrame(
+        {
+            "month_index": month,
+            "year_frac": year_frac,
+            "demand_af_month": demand_m,
+            "storage_cachuma_af": sc,
+            "storage_gibraltar_af": sgi,
+            "storage_swp_af": sswp,
+            "desal_production_af_month": desal,
+            "release_cachuma_af_month": rc,
+            "release_gibraltar_af_month": rgi,
+            "release_swp_af_month": rswp,
+            "desal_max_capacity_af_month": desal_cap_col,
+            "desal_cost_usd_month": dcost,
+            "jrisk_months_supply": jrisk,
+            "risk_plotted_neg_jrisk": plot_risk_neg,
+            "deficit_af_month": deficit,
+        }
+    )
+
+    if metadata:
+        for k, v in metadata.items():
+            key = str(k)
+            if isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, bool):
+                df[key] = float(v) if isinstance(v, np.floating) else v
+            elif isinstance(v, bool):
+                df[key] = v
+            else:
+                df[key] = str(v)
+
+    out_dir = os.path.dirname(os.path.abspath(csv_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    df.to_csv(csv_path, index=False)
+
+
 def plot_pareto(obj, nseeds = 1, title=None, save_path=None):
     # compute efficient set
     mask = is_pareto_efficient(np.array(obj))
