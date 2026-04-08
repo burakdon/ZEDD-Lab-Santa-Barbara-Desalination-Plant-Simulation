@@ -19,7 +19,12 @@ from platypus import *
 from platypus.experimenter import experiment, calculate, display
 #from concurrent.futures import ProcessPoolExecutor
 from sb_problem import SB_Problem
-from plot_optimization import *
+from plot_optimization import (
+    is_pareto_efficient,
+    plot_pareto,
+    plot_timeseries,
+    select_pareto_timeseries_indices,
+)
 import matplotlib.pyplot as plt
 import pickle
 from platypus import ProcessPoolEvaluator
@@ -70,8 +75,8 @@ def describe_capacity(best_solution, case_identifier):
 class OptimizationParameters(object):
     def __init__(self):
         ###DEMO OPTIMIZATION, use higher values of max_gen and npop if results are not converged
-        self.max_gen  = 500 
-        self.npop     = 200
+        self.max_gen  = 200 
+        self.npop     = 100
         self.nfe      = self.max_gen*self.npop
         self.cores    = 50
         self.nseeds   = 1
@@ -126,6 +131,12 @@ if __name__ == '__main__':
         action="store_true",
         help="List available cost curve cases and exit.",
     )
+    parser.add_argument(
+        "--timeseries-scenario",
+        type=int,
+        default=0,
+        help="Hydrological scenario index (0..nsim-1) for timeseries PNGs (default: 0).",
+    )
 
     args = parser.parse_args()
 
@@ -173,6 +184,13 @@ if __name__ == '__main__':
     
     idx_maxdeficit = np.argmax(np.array(objs_eff)[:,1] )
 
+    idx_ts_a, idx_ts_b = select_pareto_timeseries_indices(objs_eff)
+    ts_s = int(args.timeseries_scenario)
+    if ts_s < 0 or ts_s >= opt_par.nsim:
+        raise ValueError(
+            f"--timeseries-scenario must be in [0, {opt_par.nsim - 1}], got {ts_s}"
+        )
+
     #creat solution structure
     solution = Solution()
     solution.best_score = objs_eff[idx_nodeficit]
@@ -186,21 +204,24 @@ if __name__ == '__main__':
     sim_model = SBsim(opt_par, case_identifier, drought_type)
     sim = SB(opt_par, case_identifier, drought_type)
     print(describe_capacity(solution.best_solution, case_identifier))
-    
-    scenario = 8
-    
-    for i in range(scenario):
-        log = sim_model.simulate(param_eff[idx_nodeficit], i)
-        solution.sim_model = sim_model
-        solution.log.append(log)
 
-    # save time-series for no-deficit solution
+    log = sim_model.simulate(param_eff[idx_ts_a], ts_s)
+    solution.sim_model = sim_model
+    solution.log.append(log)
+
+    # save time-series (mid-front Pareto policy; filename kept for compatibility)
     os.makedirs('result/plots/timeseries', exist_ok=True)
     case_filename = format_case_for_filename(case_identifier)
     ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_filename}.png"
-    plot_timeseries(log, title=f"No-deficit solution — {drought_type}, case {case_identifier}", save_path=ts1_path)
+    plot_timeseries(
+        log,
+        title=(
+            f"Pareto mid-front (objective-space center) — {drought_type}, "
+            f"case {case_identifier}, scenario {ts_s}"
+        ),
+        save_path=ts1_path,
+    )
 
-    log = []
     ##creat solution structure
     solution = Solution()
     solution.best_score = objs_eff[idx_maxdeficit]
@@ -213,14 +234,20 @@ if __name__ == '__main__':
     #simulate solution
     sim_model = SBsim(opt_par, case_identifier, drought_type)
     sim = SB(opt_par, case_identifier, drought_type)
-    for i in range(scenario): #only plot first timeseries
-        log = sim_model.simulate(param_eff[idx_maxdeficit], i)
-        solution.sim_model = sim_model
-        solution.log.append(log)
+    log = sim_model.simulate(param_eff[idx_ts_b], ts_s)
+    solution.sim_model = sim_model
+    solution.log.append(log)
 
-    # save time-series for max-deficit solution
+    # save time-series (second interior policy)
     ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_filename}.png"
-    plot_timeseries(log, title=f"Max-deficit solution — {drought_type}, case {case_identifier}", save_path=ts2_path)
+    plot_timeseries(
+        log,
+        title=(
+            f"Pareto mid-front (second interior policy) — {drought_type}, "
+            f"case {case_identifier}, scenario {ts_s}"
+        ),
+        save_path=ts2_path,
+    )
     
     # creating a Dataframe object
 

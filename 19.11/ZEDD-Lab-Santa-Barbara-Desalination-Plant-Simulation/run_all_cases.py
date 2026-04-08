@@ -5,6 +5,7 @@ Run multiple cost-curve cases back-to-back and save outputs (Pareto PNG/CSV and 
 Example:
   python run_all_cases.py --drought pers87_sev0.83n_4 --cases all
   python run_all_cases.py --drought pers87_sev0.83n_4 --cases 1 14 25 43
+  python run_all_cases.py --drought pers87_sev0.83n_4 --cases all --timeseries-scenario 6
 """
 
 import sys
@@ -15,7 +16,12 @@ import pandas as pd
 
 # local imports
 from main import OptimizationParameters, run
-from plot_optimization import plot_timeseries, plot_pareto, is_pareto_efficient
+from plot_optimization import (
+    plot_timeseries,
+    plot_pareto,
+    is_pareto_efficient,
+    select_pareto_timeseries_indices,
+)
 from sim_individual import SBsim
 from cost_curve_loader import CostCurveLoader
 
@@ -44,7 +50,13 @@ def format_case_for_filename(case_identifier):
     return str(case_identifier)
 
 
-def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
+def save_outputs_for_case(
+    opt_par,
+    case_identifier,
+    drought_type: str,
+    results,
+    timeseries_scenario: int = 0,
+):
     # Collect solutions
     objs = []
     param = []
@@ -79,32 +91,43 @@ def save_outputs_for_case(opt_par, case_identifier, drought_type: str, results):
     })
     df.to_csv(pareto_csv, index=False)
 
-    # Time-series plots for representative solutions
+    # Time-series plots: use mid-front Pareto policies (not only min/max risk corners)
     if not param_eff:
         return
 
-    idx_nodeficit = int(np.argmin(np.array(objs_eff)[:, 1]))
-    idx_maxdeficit = int(np.argmax(np.array(objs_eff)[:, 1]))
+    ts_s = int(timeseries_scenario)
+    if ts_s < 0 or ts_s >= opt_par.nsim:
+        raise ValueError(
+            f"timeseries_scenario must be in [0, {opt_par.nsim - 1}], got {ts_s}"
+        )
+
+    idx_ts_a, idx_ts_b = select_pareto_timeseries_indices(objs_eff)
 
     sim_model = SBsim(opt_par, case_identifier, drought_type)
 
-    # Save one scenario timeseries for nodeficit
-    log = sim_model.simulate(param_eff[idx_nodeficit], 6)
     os.makedirs('result/plots/timeseries', exist_ok=True)
     case_filename = format_case_for_filename(case_identifier)
+
+    # Filenames kept for backward compatibility (historically min/max risk corners)
+    log = sim_model.simulate(param_eff[idx_ts_a], ts_s)
     ts1_path = f"result/plots/timeseries/timeseries_nodeficit_{drought_type}_case_{case_filename}.png"
     plot_timeseries(
         log,
-        title=f"No-deficit solution — {drought_type}, case {case_identifier}",
+        title=(
+            f"Pareto mid-front (objective-space center) — {drought_type}, "
+            f"case {case_identifier}, scenario {ts_s}"
+        ),
         save_path=ts1_path,
     )
 
-    # Save one scenario timeseries for maxdeficit
-    log = sim_model.simulate(param_eff[idx_maxdeficit], 6)
+    log = sim_model.simulate(param_eff[idx_ts_b], ts_s)
     ts2_path = f"result/plots/timeseries/timeseries_maxdeficit_{drought_type}_case_{case_filename}.png"
     plot_timeseries(
         log,
-        title=f"Max-deficit solution — {drought_type}, case {case_identifier}",
+        title=(
+            f"Pareto mid-front (second interior policy) — {drought_type}, "
+            f"case {case_identifier}, scenario {ts_s}"
+        ),
         save_path=ts2_path,
     )
 
@@ -114,6 +137,12 @@ def main():
     parser.add_argument('--drought', required=True, help='Drought type, e.g., pers87_sev0.83n_4')
     parser.add_argument('--cases', nargs='+', required=True, help='"all" or list of case identifiers')
     parser.add_argument('--list-cases', action='store_true', help='List available cost curve cases and exit')
+    parser.add_argument(
+        '--timeseries-scenario',
+        type=int,
+        default=0,
+        help='Hydrological scenario index (0..nsim-1) for timeseries PNGs (default: 0).',
+    )
     args = parser.parse_args()
 
     loader = CostCurveLoader()
@@ -150,7 +179,13 @@ def main():
     for case_identifier in cases:
         print(f"Running case {case_identifier} for drought {drought_type}...")
         results = run(opt_par, case_identifier, drought_type)
-        save_outputs_for_case(opt_par, case_identifier, drought_type, results)
+        save_outputs_for_case(
+            opt_par,
+            case_identifier,
+            drought_type,
+            results,
+            timeseries_scenario=args.timeseries_scenario,
+        )
         print(f"Completed case {case_identifier}")
 
 

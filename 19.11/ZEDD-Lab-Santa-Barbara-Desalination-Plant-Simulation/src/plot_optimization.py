@@ -42,7 +42,50 @@ def is_pareto_efficient(costs, return_mask = True):
         return is_efficient_mask
     else:
         return is_efficient
-    
+
+
+def select_pareto_timeseries_indices(objs_eff):
+    """
+    Pick two Pareto points for timeseries plots: prefer interior (mid-front) policies
+    rather than only min/max risk corners, so monthly desal policy can vary more.
+
+    Returns (idx_primary, idx_secondary) into parallel lists objs_eff / param_eff.
+
+    Primary: closest to the center of the Pareto set in normalized (cost, risk) space.
+    Secondary: median by cost if distinct; else median by risk; else second-closest
+    to the same center (or the other point if only two solutions exist).
+    """
+    objs = np.asarray(objs_eff, dtype=float)
+    n = objs.shape[0]
+    if n == 0:
+        raise ValueError("objs_eff is empty")
+    if n == 1:
+        return 0, 0
+
+    c, r = objs[:, 0], objs[:, 1]
+    cr = (c.max() - c.min()) + 1e-20
+    rr = (r.max() - r.min()) + 1e-20
+    cn = (c - c.min()) / cr
+    rn = (r - r.min()) / rr
+    dist_center = (cn - 0.5) ** 2 + (rn - 0.5) ** 2
+    idx_center = int(np.argmin(dist_center))
+
+    order_c = np.argsort(objs[:, 0])
+    idx_med_cost = int(order_c[n // 2])
+    if idx_med_cost != idx_center:
+        return idx_center, idx_med_cost
+
+    order_r = np.argsort(objs[:, 1])
+    idx_med_risk = int(order_r[n // 2])
+    if idx_med_risk != idx_center:
+        return idx_center, idx_med_risk
+
+    if n == 2:
+        return idx_center, 1 - idx_center
+
+    order_d = np.argsort(dist_center)
+    return int(order_d[0]), int(order_d[1])
+
 
 def plot_pareto(obj, nseeds = 1, title=None, save_path=None):
     # compute efficient set
