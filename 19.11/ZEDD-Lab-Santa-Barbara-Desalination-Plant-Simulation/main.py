@@ -25,6 +25,7 @@ from plot_optimization import (
     plot_timeseries,
     select_pareto_timeseries_indices,
     save_timeseries_log_csv,
+    companion_timeseries_data_csv_path,
 )
 import matplotlib.pyplot as plt
 import pickle
@@ -224,7 +225,7 @@ if __name__ == '__main__':
     )
     save_timeseries_log_csv(
         log,
-        ts1_path.replace(".png", ".csv"),
+        companion_timeseries_data_csv_path(ts1_path),
         metadata={
             "drought": drought_type,
             "case": str(case_identifier),
@@ -263,7 +264,7 @@ if __name__ == '__main__':
     )
     save_timeseries_log_csv(
         log,
-        ts2_path.replace(".png", ".csv"),
+        companion_timeseries_data_csv_path(ts2_path),
         metadata={
             "drought": drought_type,
             "case": str(case_identifier),

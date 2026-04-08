@@ -30,7 +30,11 @@ if REPO_ROOT not in sys.path:
 
 from main import OptimizationParameters
 from cost_curve_loader import CostCurveLoader
-from plot_optimization import plot_timeseries, save_timeseries_log_csv
+from plot_optimization import (
+    plot_timeseries,
+    save_timeseries_log_csv,
+    companion_timeseries_data_csv_path,
+)
 
 from fixed_desal_experiment.fixed_sb import SBFixed, SBsimFixed
 
@@ -205,7 +209,7 @@ def main():
                 )
                 save_timeseries_log_csv(
                     log,
-                    ts_path.replace(".png", ".csv"),
+                    companion_timeseries_data_csv_path(ts_path),
                     metadata={
                         "drought": drought_type,
                         "case": str(case_identifier),

@@ -87,9 +87,22 @@ def select_pareto_timeseries_indices(objs_eff):
     return int(order_d[0]), int(order_d[1])
 
 
+def companion_timeseries_data_csv_path(png_save_path: str) -> str:
+    """
+    Default CSV path for timeseries data: result/data/timeseries/<same basename as PNG>.csv
+    (PNG stays under result/plots/...; raw data lives under result/data/timeseries/).
+    """
+    base = os.path.basename(png_save_path)
+    stem, _ = os.path.splitext(base)
+    return os.path.join("result", "data", "timeseries", f"{stem}.csv")
+
+
 def save_timeseries_log_csv(log, csv_path, metadata=None):
     """
     Save monthly series used by plot_timeseries to a CSV (one file per companion PNG).
+
+    Prefer csv_path from companion_timeseries_data_csv_path(png_path) so data sit under
+    result/data/timeseries/ while figures stay under result/plots/timeseries/.
 
     Columns align with the three panels: storage (AF), releases/production (AF/month),
     cost and risk. Optional metadata dict keys are repeated on every row for provenance.
