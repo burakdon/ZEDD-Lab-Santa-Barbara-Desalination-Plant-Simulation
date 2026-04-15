@@ -1,0 +1,9 @@
+# RL layer dependencies
+# Install with: pip3 install -r requirements_rl.txt
+gymnasium>=0.29.0
+stable-baselines3>=2.3.0
+pandas>=1.5.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+torch>=2.0.0

@@ -14,7 +14,10 @@ MDP definition:
 
 Usage:
     from water_env import WaterEnv
-    env = WaterEnv(case_number='4mpd_36vessels', drought_type='pers87_sev0.83n_4')
+    env = WaterEnv(
+        case_number='basetariff_flexible/4mpd_36vessels',
+        drought_type='pers87_sev0.83n_4',
+    )
     obs, info = env.reset()
     obs, reward, terminated, truncated, info = env.step(action)
 """
@@ -65,7 +68,8 @@ class WaterEnv(gym.Env):
     Parameters
     ----------
     case_number : str
-        Cost curve case, e.g. '4mpd_36vessels'.
+        Cost curve case id as ``'<subfolder>/<stem>'`` (e.g. ``'basetariff_flexible/4mpd_36vessels'``
+        when ``cost_curves_dir`` is ``'cost_curves/new_data'``).
     drought_type : str
         Hydrological scenario identifier, e.g. 'pers87_sev0.83n_4'.
     scenario_idx : int or None
@@ -82,7 +86,8 @@ class WaterEnv(gym.Env):
     data_dir : str
         Path to the data directory containing inflow txt files.
     cost_curves_dir : str
-        Path to the cost_curves directory.
+        Path to the cost-curve dataset root (CSV layout: one scenario subfolder, then
+        ``basetariff_*`` folders). Default ``cost_curves/new_data`` matches this repo.
     randomise_init_storage : bool
         If True, initialise reservoirs at a random fraction of capacity
         to improve generalisation during training.
@@ -92,14 +97,14 @@ class WaterEnv(gym.Env):
 
     def __init__(
         self,
-        case_number: str = "4mpd_36vessels",
+        case_number: str = "basetariff_flexible/4mpd_36vessels",
         drought_type: str = "pers87_sev0.83n_4",
         scenario_idx: int = None,
         safety_threshold_months: float = 3.0,
         safety_penalty: float = 5000.0,
         cost_scale: float = 1e5,
         data_dir: str = "data",
-        cost_curves_dir: str = "cost_curves",
+        cost_curves_dir: str = "cost_curves/new_data",
         randomise_init_storage: bool = True,
     ):
         super().__init__()
@@ -387,9 +392,11 @@ if __name__ == "__main__":
     print("Running WaterEnv sanity check...")
 
     env = WaterEnv(
-        case_number  = "4mpd_36vessels",
-        drought_type = "pers87_sev0.83n_4",
-        scenario_idx = 0,
+        case_number              = "basetariff_flexible/4mpd_36vessels",
+        drought_type             = "pers87_sev0.83n_4",
+        cost_curves_dir          = "cost_curves/new_data",
+        data_dir                 = "data",
+        scenario_idx             = 0,
         randomise_init_storage = False,
     )
 
