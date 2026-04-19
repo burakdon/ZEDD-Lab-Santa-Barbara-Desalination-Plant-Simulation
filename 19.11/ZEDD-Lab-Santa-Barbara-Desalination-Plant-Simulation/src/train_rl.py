@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-train_rl.py — Train PPO agents on the Santa Barbara water supply environment.
+train_rl.py — Train SAC agents on the Santa Barbara water supply environment.
 
 Trains two agents:
   1. cost_only  — reward is purely -monthly_cost, no safety penalty
   2. safe       — reward includes a heavy penalty when months-of-supply < threshold
 
-This lets us demonstrate the alignment/safety concern directly:
-the cost_only agent learns to minimise cost but may risk water supply failure,
-while the safe agent learns to balance cost against supply security.
-
 Usage (from project root):
-    python src/train_rl.py
+    python3 src/train_rl.py
 
 Outputs written to result/rl/:
-    agents/cost_only_agent/   — saved PPO model (stable-baselines3 format)
-    agents/safe_agent/        — saved PPO model
-    trajectories/cost_only_drought.npz   — episode trajectory on severe drought
-    trajectories/safe_drought.npz        — episode trajectory on severe drought
-    logs/cost_only/           — tensorboard logs
-    logs/safe/                — tensorboard logs
+    agents/cost_only_agent/   — saved SAC model
+    agents/safe_agent/        — saved SAC model
+    trajectories/cost_only_drought.npz
+    trajectories/safe_drought.npz
 """
 
 import os
@@ -33,115 +27,87 @@ SRC_DIR      = os.path.join(PROJECT_ROOT, 'src')
 sys.path.insert(0, SRC_DIR)
 sys.path.insert(0, PROJECT_ROOT)
 
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 
 from water_env import WaterEnv
 
 # ── Output directories ────────────────────────────────────────────────────────
-RESULT_DIR   = os.path.join(PROJECT_ROOT, 'result', 'rl')
-AGENT_DIR    = os.path.join(RESULT_DIR, 'agents')
-TRAJ_DIR     = os.path.join(RESULT_DIR, 'trajectories')
-LOG_DIR      = os.path.join(RESULT_DIR, 'logs')
+RESULT_DIR = os.path.join(PROJECT_ROOT, 'result', 'rl')
+AGENT_DIR  = os.path.join(RESULT_DIR, 'agents')
+TRAJ_DIR   = os.path.join(RESULT_DIR, 'trajectories')
+LOG_DIR    = os.path.join(RESULT_DIR, 'logs')
 
 for d in [AGENT_DIR, TRAJ_DIR, LOG_DIR]:
     os.makedirs(d, exist_ok=True)
 
-# ── Shared environment config ─────────────────────────────────────────────────
+# ── Shared environment config — no randomise_init_storage here ───────────────
 ENV_KWARGS_BASE = dict(
-    case_number             = "basetariff_flexible/4mpd_36vessels",
-    drought_type            = "pers87_sev0.83n_4",
-    cost_curves_dir         = "cost_curves/new_data",
-    data_dir                = "data",
-    randomise_init_storage  = True,   # randomise init for training robustness
-    cost_scale              = 1e5,
+    case_number            = "basetariff_flexible/4mpd_36vessels",
+    drought_type           = "pers87_sev0.83n_4",
+    cost_curves_dir        = "cost_curves",
+    data_dir               = "data",
+    cost_scale             = 1e6,
 )
 
-# Severe drought scenario used for final evaluation
-SEVERE_DROUGHT   = "pers87_sev0.83n_4"
-EVAL_SCENARIO    = 0   # fix scenario index for comparable eval
+SEVERE_DROUGHT = "pers87_sev0.83n_4"
+EVAL_SCENARIO  = 0
 
 # ── Training config ───────────────────────────────────────────────────────────
-TOTAL_TIMESTEPS  = 500_000   # increase to 1_000_000 for better convergence
-N_ENVS           = 4         # parallel environments
-EVAL_FREQ        = 20_000    # evaluate every N steps
-N_EVAL_EPISODES  = 5
+TOTAL_TIMESTEPS = 300_000
+EVAL_FREQ       = 10_000
+N_EVAL_EPISODES = 3
 
-# PPO hyperparameters — tuned for continuous control
-PPO_KWARGS = dict(
+SAC_KWARGS = dict(
     learning_rate   = 3e-4,
-    n_steps         = 2048,
-    batch_size      = 64,
-    n_epochs        = 10,
+    buffer_size     = 200_000,
+    learning_starts = 5_000,
+    batch_size      = 256,
+    tau             = 0.005,
     gamma           = 0.99,
-    gae_lambda      = 0.95,
-    clip_range      = 0.2,
-    ent_coef        = 0.01,   # small entropy bonus to encourage exploration
+    train_freq      = 1,
+    gradient_steps  = 1,
+    ent_coef        = "auto",
     verbose         = 1,
 )
 
 
-def make_env(safety_penalty: float = 0.0, scenario_idx=None):
-    """Factory function returning a monitored WaterEnv."""
-    def _init():
-        env = WaterEnv(
-            **ENV_KWARGS_BASE,
-            safety_penalty          = safety_penalty,
-            safety_threshold_months = 3.0,
-            scenario_idx            = scenario_idx,
-        )
-        return Monitor(env)
-    return _init
-
-
-def train_agent(name: str, safety_penalty: float) -> PPO:
-    """
-    Train a PPO agent and save it.
-
-    Parameters
-    ----------
-    name : str
-        Agent name — used for file paths and logging.
-    safety_penalty : float
-        Safety penalty magnitude. 0.0 = cost-only, >0 = safety-constrained.
-
-    Returns
-    -------
-    Trained PPO model.
-    """
-    print(f"\n{'='*60}")
-    print(f"Training agent: {name}")
-    print(f"  Safety penalty: {safety_penalty}")
-    print(f"  Total timesteps: {TOTAL_TIMESTEPS:,}")
-    print(f"  Parallel envs: {N_ENVS}")
-    print(f"{'='*60}\n")
-
-    # Training environments — randomised init storage, random scenario each episode
-    train_env = make_vec_env(
-        make_env(safety_penalty=safety_penalty),
-        n_envs=N_ENVS,
-        seed=42,
-    )
-
-    # Evaluation environment — fixed scenario for comparable metrics
-    eval_env = Monitor(WaterEnv(
+def make_env(safety_penalty: float = 0.0, scenario_idx=None, randomise=True):
+    env = WaterEnv(
         **ENV_KWARGS_BASE,
         safety_penalty          = safety_penalty,
         safety_threshold_months = 3.0,
-        scenario_idx            = EVAL_SCENARIO,
-        randomise_init_storage  = False,
-    ))
+        scenario_idx            = scenario_idx,
+        randomise_init_storage  = randomise,
+    )
+    return Monitor(env)
+
+
+def train_agent(name: str, safety_penalty: float) -> SAC:
+    print(f"\n{'='*60}")
+    print(f"Training agent: {name}  (SAC)")
+    print(f"  Safety penalty:  {safety_penalty}")
+    print(f"  Total timesteps: {TOTAL_TIMESTEPS:,}")
+    print(f"{'='*60}\n")
+
+    train_env = make_env(safety_penalty=safety_penalty, randomise=True)
+
+    eval_env = make_env(
+        safety_penalty = safety_penalty,
+        scenario_idx   = EVAL_SCENARIO,
+        randomise      = False,
+    )
 
     agent_save_path = os.path.join(AGENT_DIR, name)
     log_path        = os.path.join(LOG_DIR, name)
+    os.makedirs(agent_save_path, exist_ok=True)
 
     eval_callback = EvalCallback(
         eval_env,
         best_model_save_path = agent_save_path,
         log_path             = log_path,
-        eval_freq            = max(EVAL_FREQ // N_ENVS, 1),
+        eval_freq            = EVAL_FREQ,
         n_eval_episodes      = N_EVAL_EPISODES,
         deterministic        = True,
         render               = False,
@@ -149,26 +115,23 @@ def train_agent(name: str, safety_penalty: float) -> PPO:
     )
 
     checkpoint_callback = CheckpointCallback(
-        save_freq   = max(100_000 // N_ENVS, 1),
+        save_freq   = 50_000,
         save_path   = agent_save_path,
         name_prefix = name,
         verbose     = 1,
     )
 
-    model = PPO(
+    model = SAC(
         "MlpPolicy",
         train_env,
-        tensorboard_log = log_path,
-        **PPO_KWARGS,
+        **SAC_KWARGS,
     )
 
     model.learn(
         total_timesteps = TOTAL_TIMESTEPS,
         callback        = [eval_callback, checkpoint_callback],
-        progress_bar    = True,
     )
 
-    # Save final model
     final_path = os.path.join(agent_save_path, f"{name}_final")
     model.save(final_path)
     print(f"\n  Saved final model → {final_path}.zip")
@@ -179,18 +142,15 @@ def train_agent(name: str, safety_penalty: float) -> PPO:
     return model
 
 
-def run_eval_episode(model: PPO, safety_penalty: float, drought_type: str, scenario_idx: int):
-    """
-    Run a single deterministic episode and return the full trajectory.
-    Used to compare agents on the same drought scenario.
-    """
+def run_eval_episode(model: SAC, safety_penalty: float, drought_type: str, scenario_idx: int):
+    eval_kwargs = {**ENV_KWARGS_BASE,
+                   "randomise_init_storage": False,
+                   "drought_type": drought_type}
     env = WaterEnv(
-        **ENV_KWARGS_BASE,
-        drought_type            = drought_type,
+        **eval_kwargs,
         safety_penalty          = safety_penalty,
         safety_threshold_months = 3.0,
         scenario_idx            = scenario_idx,
-        randomise_init_storage  = False,
     )
 
     obs, _ = env.reset(seed=0)
@@ -211,19 +171,18 @@ def run_eval_episode(model: PPO, safety_penalty: float, drought_type: str, scena
 
 
 def save_trajectory(traj: dict, info: dict, path: str):
-    """Save trajectory arrays to a .npz file for later visualisation."""
     np.savez(
         path,
-        sc            = traj["sc"],
-        sgi           = traj["sgi"],
-        sswp          = traj["sswp"],
-        desal         = traj["desal"],
-        cost          = traj["cost"],
-        risk          = traj["risk"],
-        deficit       = traj["deficit"],
-        reward        = traj["reward"],
-        desal_capacity = traj["desal_capacity"],
-        demand        = traj["demand"],
+        sc                    = traj["sc"],
+        sgi                   = traj["sgi"],
+        sswp                  = traj["sswp"],
+        desal                 = traj["desal"],
+        cost                  = traj["cost"],
+        risk                  = traj["risk"],
+        deficit               = traj["deficit"],
+        reward                = traj["reward"],
+        desal_capacity        = traj["desal_capacity"],
+        demand                = traj["demand"],
         episode_total_cost    = info["episode_total_cost"],
         episode_mean_risk     = info["episode_mean_risk"],
         episode_min_risk      = info["episode_min_risk"],
@@ -234,19 +193,19 @@ def save_trajectory(traj: dict, info: dict, path: str):
 
 if __name__ == "__main__":
 
-    # ── 1. Train cost-only agent ───────────────────────────────────────────────
+    # 1. Train cost-only agent
     cost_only_model = train_agent(
         name           = "cost_only_agent",
         safety_penalty = 0.0,
     )
 
-    # ── 2. Train safety-constrained agent ─────────────────────────────────────
+    # 2. Train safety-constrained agent
     safe_model = train_agent(
         name           = "safe_agent",
-        safety_penalty = 5000.0,
+        safety_penalty = 50000.0,
     )
 
-    # ── 3. Evaluate both on severe drought ────────────────────────────────────
+    # 3. Evaluate both on severe drought
     print(f"\n{'='*60}")
     print(f"Evaluating both agents on severe drought: {SEVERE_DROUGHT}")
     print(f"{'='*60}")
@@ -255,21 +214,17 @@ if __name__ == "__main__":
     cost_traj, cost_info = run_eval_episode(
         cost_only_model, 0.0, SEVERE_DROUGHT, EVAL_SCENARIO
     )
-    save_trajectory(
-        cost_traj, cost_info,
-        os.path.join(TRAJ_DIR, "cost_only_drought")
-    )
+    save_trajectory(cost_traj, cost_info,
+                    os.path.join(TRAJ_DIR, "cost_only_drought"))
 
     print("\nSafe agent:")
     safe_traj, safe_info = run_eval_episode(
-        safe_model, 5000.0, SEVERE_DROUGHT, EVAL_SCENARIO
+        safe_model, 50000.0, SEVERE_DROUGHT, EVAL_SCENARIO
     )
-    save_trajectory(
-        safe_traj, safe_info,
-        os.path.join(TRAJ_DIR, "safe_drought")
-    )
+    save_trajectory(safe_traj, safe_info,
+                    os.path.join(TRAJ_DIR, "safe_drought"))
 
-    # ── 4. Summary comparison ─────────────────────────────────────────────────
+    # 4. Summary
     print(f"\n{'='*60}")
     print("TRAINING COMPLETE — AGENT COMPARISON")
     print(f"{'='*60}")
@@ -281,8 +236,4 @@ if __name__ == "__main__":
     print(f"{'Total deficit (AF)':<30} {cost_info['episode_total_deficit']:>15.1f} {safe_info['episode_total_deficit']:>15.1f}")
     print(f"{'='*60}")
     print("\nOutputs saved to result/rl/")
-    print("  agents/cost_only_agent/  — trained PPO model")
-    print("  agents/safe_agent/       — trained PPO model")
-    print("  trajectories/            — .npz files for visualisation")
-    print("  logs/                    — tensorboard logs")
-    print("\nNext step: python src/visualize_rl.py")
+    print("Next step: python3 src/visualize_rl.py")
