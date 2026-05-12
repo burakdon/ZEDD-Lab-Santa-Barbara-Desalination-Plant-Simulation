@@ -5,8 +5,15 @@ Overlay Pareto fronts for all ``supply_curve_tariff_sensitivity`` tariff cases.
 Discovers CSVs saved as:
   result/data/pareto/pareto_<drought>_case_supply_curve_tariff_sensitivity_hour*_day*_year*_baseline|flexible_3mpd_30vessels.csv
 
-Two panels: baseline vs flexible. Each (hour, day, year) combination gets one color
-from a shared colormap; curves are sorted by cost and drawn as translucent lines.
+Two panels: **baseline** (left) and **flexible** (right), matching the style of
+``overlay_pareto_fixed_vs_flex.py``:
+
+- **Color** encodes **peak hours** (2 / 5 / 8) using the first three Matplotlib tab10 colors
+  (same family as other project overlays).
+- **Linestyle** encodes **day** (peak/off-peak price ratio level: 1, 5, 10): solid, dashed, dotted.
+- **Line width** encodes **year** (summer/winter charge ratio level: 1, 2, 5).
+- **Flexible** panel uses the same mapping but each color is passed through ``mute_color()``
+  (desaturated / lighter), analogous to flexible curves elsewhere in the repo.
 
 Usage (from project root):
   python3 overlay_tariff_sensitivity_pareto.py --drought pers87_sev0.83n_4
@@ -27,8 +34,48 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
+
+# First three tab10 colors (default Matplotlib cycle) — same spirit as overlay_pareto*.py
+HOUR_COLORS = {
+    2: "#1f77b4",
+    5: "#ff7f0e",
+    8: "#2ca02c",
+}
+DAY_LINESTYLE = {
+    1: "-",
+    5: "--",
+    10: ":",
+}
+YEAR_LINEWIDTH = {
+    1: 1.05,
+    2: 1.45,
+    5: 1.9,
+}
+
+
+def mute_color(
+    color_hex: str, saturation_reduction: float = 0.5, brightness_increase: float = 0.1
+) -> str:
+    """Match ``overlay_pareto_fixed_vs_flex.mute_color`` (flexible / muted curves)."""
+    rgb = mcolors.hex2color(color_hex)
+    hsv = mcolors.rgb_to_hsv(rgb)
+    hsv[1] = max(0.0, hsv[1] - saturation_reduction)
+    hsv[2] = min(1.0, hsv[2] + brightness_increase)
+    rgb_muted = mcolors.hsv_to_rgb(hsv)
+    return mcolors.rgb2hex(rgb_muted)
+
+
+def style_for_scenario(h: int, d: int, y: int, panel: str) -> Tuple[str, str, float]:
+    """Return (color_hex, linestyle, linewidth)."""
+    col = HOUR_COLORS.get(h, "#7f7f7f")
+    if panel == "flexible":
+        col = mute_color(col)
+    ls = DAY_LINESTYLE.get(d, "-")
+    lw = YEAR_LINEWIDTH.get(y, 1.2)
+    return col, ls, lw
+
 
 CASE_RE = re.compile(
     r"^supply_curve_tariff_sensitivity_hour(\d+)_day(\d+)_year(\d+)_(baseline|flexible)_3mpd_30vessels$"
@@ -51,28 +98,16 @@ def parse_case_filename(case_fn: str) -> Optional[Tuple[int, int, int, str]]:
     return int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4)
 
 
-def build_color_lookup(keys: List[Tuple[int, int, int]], cmap_name: str):
-    """Map each unique (hour, day, year) to a color using ``tab20`` / qualitative or ``viridis``."""
-    uniq = sorted(set(keys))
-    n = len(uniq)
-    cmap = plt.get_cmap(cmap_name)
-    norm = mcolors.Normalize(vmin=0, vmax=max(n - 1, 1))
-    lut = {k: cmap(norm(i)) for i, k in enumerate(uniq)}
-    return lut, uniq
-
-
 def plot_overlay(
     drought: str,
     paths: List[str],
     out: str,
-    cmap_name: str,
     title: str | None,
 ):
     by_panel: Dict[str, List[Tuple[str, Tuple[int, int, int, str]]]] = {
         "baseline": [],
         "flexible": [],
     }
-    all_keys: List[Tuple[int, int, int]] = []
 
     for path in paths:
         base = os.path.basename(path)
@@ -88,11 +123,8 @@ def plot_overlay(
         if tariff not in by_panel:
             continue
         by_panel[tariff].append((path, (h, d, y, tariff)))
-        all_keys.append((h, d, y))
 
-    color_lut, uniq_keys = build_color_lookup(all_keys, cmap_name)
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.2), sharex=True, sharey=True)
 
     for ax, panel in zip(axes, ("baseline", "flexible")):
         items = by_panel[panel]
@@ -119,13 +151,14 @@ def plot_overlay(
                     print(f"WARN: missing columns in {path}")
                     continue
                 df = df.sort_values("cost")
-                col = color_lut[(h, d, y)]
+                col, ls, lw = style_for_scenario(h, d, y, panel)
                 ax.plot(
                     df["cost"].values,
                     df["risk_months_supply"].values,
                     color=col,
-                    alpha=0.45,
-                    linewidth=1.4,
+                    linestyle=ls,
+                    linewidth=lw,
+                    alpha=0.62,
                     solid_capstyle="round",
                 )
             ax.set_title(f"{panel.capitalize()} ({len(items)} fronts)")
@@ -135,31 +168,57 @@ def plot_overlay(
 
     axes[0].set_ylabel("Months of supply in storage (risk proxy, higher is safer)")
 
-    vmax = max(len(uniq_keys) - 1, 1)
-    sm = plt.cm.ScalarMappable(
-        cmap=plt.get_cmap(cmap_name),
-        norm=mcolors.Normalize(vmin=0, vmax=vmax),
+    leg_hour = [
+        Line2D(
+            [0],
+            [0],
+            color=HOUR_COLORS[h],
+            lw=2.4,
+            linestyle="-",
+            label=f"Peak hours = {h}",
+        )
+        for h in sorted(HOUR_COLORS)
+    ]
+    leg_day = [
+        Line2D(
+            [0],
+            [0],
+            color="#333333",
+            lw=2.0,
+            linestyle=DAY_LINESTYLE[d],
+            label=f"Day ratio level = {d}",
+        )
+        for d in sorted(DAY_LINESTYLE)
+    ]
+    leg_year = [
+        Line2D(
+            [0],
+            [0],
+            color="#555555",
+            lw=YEAR_LINEWIDTH[y],
+            linestyle="-",
+            label=f"Year ratio level = {y}",
+        )
+        for y in sorted(YEAR_LINEWIDTH)
+    ]
+    fig.legend(
+        handles=leg_hour + leg_day + leg_year,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.01),
+        ncol=3,
+        fontsize=9,
+        frameon=True,
+        framealpha=0.92,
     )
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=list(axes), fraction=0.035, pad=0.04)
-    n_ticks = min(9, len(uniq_keys))
-    tick_idx = (
-        np.linspace(0, vmax, n_ticks).astype(int)
-        if len(uniq_keys) > 1
-        else np.array([0], dtype=int)
-    )
-    cbar.set_ticks(tick_idx)
-    cbar.set_ticklabels(
-        [f"h{uniq_keys[i][0]} d{uniq_keys[i][1]} y{uniq_keys[i][2]}" for i in tick_idx]
-    )
-    cbar.set_label("(hour, day, year) — sorted scenario index → color")
 
+    n_fronts = len(by_panel["baseline"]) + len(by_panel["flexible"])
     ttl = title or (
         f"Tariff sensitivity — Pareto overlays ({drought})\n"
-        f"Color = (hour, day, year); {len(by_panel['baseline']) + len(by_panel['flexible'])} fronts"
+        f"Colors (tab10-style) = peak hours; line style = day ratio; width = year ratio; "
+        f"flexible panel uses muted colors ({n_fronts} fronts)"
     )
-    fig.suptitle(ttl, fontsize=12, fontweight="bold", y=0.98)
-    fig.subplots_adjust(left=0.08, right=0.88, top=0.86, bottom=0.12, wspace=0.12)
+    fig.suptitle(ttl, fontsize=11, fontweight="bold", y=0.99)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.82, bottom=0.22, wspace=0.12)
 
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     fig.savefig(out, dpi=160)
@@ -175,11 +234,6 @@ def main() -> int:
         "--out",
         default="result/plots/pareto/tariff_sensitivity_overlay_baseline_flexible.png",
     )
-    ap.add_argument(
-        "--cmap",
-        default="viridis",
-        help="Matplotlib colormap name for (hour, day, year) index",
-    )
     ap.add_argument("--title", default=None)
     args = ap.parse_args()
 
@@ -191,7 +245,7 @@ def main() -> int:
         )
         return 1
 
-    plot_overlay(args.drought, paths, args.out, args.cmap, args.title)
+    plot_overlay(args.drought, paths, args.out, args.title)
     return 0
 
 
