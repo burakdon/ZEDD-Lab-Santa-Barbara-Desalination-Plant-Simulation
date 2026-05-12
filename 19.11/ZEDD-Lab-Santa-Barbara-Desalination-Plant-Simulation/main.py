@@ -82,8 +82,8 @@ def describe_capacity(best_solution, case_identifier):
 class OptimizationParameters(object):
     def __init__(self):
         ###DEMO OPTIMIZATION, use higher values of max_gen and npop if results are not converged
-        self.max_gen  = 500 
-        self.npop     = 200
+        self.max_gen  = 100 
+        self.npop     = 50
         self.nfe      = self.max_gen*self.npop
         self.cores    = 50
         self.nseeds   = 1
