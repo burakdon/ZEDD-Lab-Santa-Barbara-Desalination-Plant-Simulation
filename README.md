@@ -156,6 +156,16 @@ python3 run_all_cases.py --drought pers87_sev0.83n_4 --cases all --timeseries-sc
 python3 run_all_cases.py --drought pers87_sev0.83n_4 --cases basetariff_baseline/3mpd_30vessels basetariff_flexible/8mpd_36vessels
 ```
 
+**Tariff / supply-curve sensitivity** (`cost_curves/supply_curve_tariff_sensitivity/`): ensure capital/labor `*_overall.csv` files exist (copied from `new_data` templates), then batch NSGA-II for all nested scenarios:
+
+```bash
+python3 scripts/ensure_tariff_sensitivity_overall.py
+python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --list-cases
+python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --cases all
+# smoke test (tiny budget, one case):
+python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --quick --max-cases 1
+```
+
 **Fixed desalination utilization** (no RBF policy optimization in that script’s inner loop — see module docstring):
 
 ```bash

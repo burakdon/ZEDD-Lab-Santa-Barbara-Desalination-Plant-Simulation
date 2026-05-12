@@ -53,64 +53,63 @@ class CostCurveLoader:
         return case_map
 
     def _discover_case_files(self) -> Dict[str, Dict[str, str]]:
-        """Discover available case files by scanning the directory and subfolders."""
+        """Discover available case files by scanning the tree under ``cost_curves_dir``.
+
+        A case is any directory that contains ``{stem}_summer.csv``, ``{stem}_winter.csv``,
+        and ``{stem}_overall.csv`` for the same ``stem``. The case id is
+        ``relpath/stem`` using ``/`` separators (e.g. ``new_data/basetariff_baseline/3mpd_30vessels``).
+        """
         case_files: Dict[str, Dict[str, str]] = {}
         if not os.path.isdir(self.cost_curves_dir):
             return case_files
 
-        # Scan root directory
-        for filename in os.listdir(self.cost_curves_dir):
-            if not filename.endswith('_summer.csv'):
-                continue
+        skip_dir_names = {".git", "__pycache__", ".pytest_cache", ".mypy_cache"}
 
-            case_id = filename[:-len('_summer.csv')]
-            overall_name = f"{case_id}_overall.csv"
-            winter_name = f"{case_id}_winter.csv"
-
-            overall_path = os.path.join(self.cost_curves_dir, overall_name)
-            summer_path = os.path.join(self.cost_curves_dir, filename)
-            winter_path = os.path.join(self.cost_curves_dir, winter_name)
-
-            if os.path.exists(overall_path) and os.path.exists(winter_path):
+        for dirpath, dirnames, filenames in os.walk(self.cost_curves_dir):
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if not d.startswith(".") and d not in skip_dir_names
+            ]
+            for filename in filenames:
+                if not filename.endswith("_summer.csv"):
+                    continue
+                stem = filename[: -len("_summer.csv")]
+                overall_name = f"{stem}_overall.csv"
+                winter_name = f"{stem}_winter.csv"
+                if overall_name not in filenames or winter_name not in filenames:
+                    continue
+                summer_path = os.path.join(dirpath, filename)
+                winter_path = os.path.join(dirpath, winter_name)
+                overall_path = os.path.join(dirpath, overall_name)
+                rel = os.path.relpath(dirpath, self.cost_curves_dir)
+                if rel in (".", ""):
+                    case_id = stem
+                else:
+                    case_id = os.path.join(rel, stem).replace("\\", "/")
                 case_files[case_id] = {
-                    'overall': overall_path,
-                    'summer': summer_path,
-                    'winter': winter_path,
+                    "overall": overall_path,
+                    "summer": summer_path,
+                    "winter": winter_path,
                 }
-
-        # Scan subfolders
-        for item in os.listdir(self.cost_curves_dir):
-            subfolder_path = os.path.join(self.cost_curves_dir, item)
-            if os.path.isdir(subfolder_path) and not item.startswith('.'):
-                for filename in os.listdir(subfolder_path):
-                    if not filename.endswith('_summer.csv'):
-                        continue
-
-                    case_id = filename[:-len('_summer.csv')]
-                    # Store with subfolder prefix: subfolder/case_id
-                    full_case_id = f"{item}/{case_id}"
-                    
-                    overall_name = f"{case_id}_overall.csv"
-                    winter_name = f"{case_id}_winter.csv"
-
-                    overall_path = os.path.join(subfolder_path, overall_name)
-                    summer_path = os.path.join(subfolder_path, filename)
-                    winter_path = os.path.join(subfolder_path, winter_name)
-
-                    if os.path.exists(overall_path) and os.path.exists(winter_path):
-                        case_files[full_case_id] = {
-                            'overall': overall_path,
-                            'summer': summer_path,
-                            'winter': winter_path,
-                        }
 
         return case_files
 
     def _normalize_case_id(self, case_id: Union[int, str]) -> str:
         """Normalize case identifiers to string form used internally."""
         if isinstance(case_id, (int, float)) and not isinstance(case_id, bool):
-            return str(int(case_id))
-        return str(case_id).strip()
+            s = str(int(case_id))
+        else:
+            s = str(case_id).strip()
+        if s in self._case_files:
+            return s
+        # When scanning the full ``cost_curves/`` tree, cases live under ``new_data/`` or
+        # ``old_data/``; allow the historical ids ``basetariff_*/stem`` without the prefix.
+        for prefix in ("new_data", "old_data"):
+            cand = f"{prefix}/{s}"
+            if cand in self._case_files:
+                return cand
+        return s
     
     def get_available_cases(self) -> list:
         """Get list of available case identifiers (ints when possible)."""
@@ -166,25 +165,55 @@ class CostCurveLoader:
         
         paths = self._case_files[case_id]
 
-        overall_df = pd.read_csv(paths['overall'])
-        summer_df = pd.read_csv(paths['summer'])
-        winter_df = pd.read_csv(paths['winter'])
-        
+        overall_df = pd.read_csv(paths["overall"])
+        summer_df = pd.read_csv(paths["summer"])
+        winter_df = pd.read_csv(paths["winter"])
+
+        def _col(df: pd.DataFrame, *candidates: str) -> pd.Series:
+            lower = {c.lower(): c for c in df.columns}
+            for name in candidates:
+                key = name.lower()
+                if key in lower:
+                    return df[lower[key]]
+            for name in candidates:
+                for col in df.columns:
+                    if name.lower() in col.lower().replace(" ", ""):
+                        return df[col]
+            raise KeyError(
+                f"None of {candidates} found in columns {list(df.columns)} "
+                f"(file context: {paths})"
+            )
+
+        cap_col = _col(overall_df, "capital_upgrade_cost_usd")
+        lab_col = _col(overall_df, "labor_cost_usd_month")
+
         cost_curve_data = {
-            'overall': {
-                'capital_upgrade_cost_usd': float(overall_df['capital_upgrade_cost_usd'].iloc[0]),
-                'labor_cost_usd_month': float(overall_df['labor_cost_usd_month'].iloc[0])
+            "overall": {
+                "capital_upgrade_cost_usd": float(cap_col.iloc[0]),
+                "labor_cost_usd_month": float(lab_col.iloc[0]),
             },
-            'summer': {
-                'water_production': summer_df['water_production_AF_month'].values,
-                'electricity_cost': summer_df['electricity_cost_usd_month'].values,
-                'fixed_cost': summer_df['fixed_cost_usd_month'].values
+            "summer": {
+                "water_production": _col(
+                    summer_df, "water_production_AF_month"
+                ).values.astype(float),
+                "electricity_cost": _col(
+                    summer_df, "electricity_cost_usd_month"
+                ).values.astype(float),
+                "fixed_cost": _col(summer_df, "fixed_cost_usd_month").values.astype(
+                    float
+                ),
             },
-            'winter': {
-                'water_production': winter_df['water_production_AF_month'].values,
-                'electricity_cost': winter_df['electricity_cost_usd_month'].values,
-                'fixed_cost': winter_df['fixed_cost_usd_month'].values
-            }
+            "winter": {
+                "water_production": _col(
+                    winter_df, "water_production_AF_month"
+                ).values.astype(float),
+                "electricity_cost": _col(
+                    winter_df, "electricity_cost_usd_month"
+                ).values.astype(float),
+                "fixed_cost": _col(winter_df, "fixed_cost_usd_month").values.astype(
+                    float
+                ),
+            },
         }
         
         # Cache the data

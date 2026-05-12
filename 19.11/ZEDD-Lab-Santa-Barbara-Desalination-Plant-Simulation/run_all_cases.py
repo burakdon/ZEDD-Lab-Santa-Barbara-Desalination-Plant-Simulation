@@ -45,11 +45,16 @@ def parse_case_identifier(case_identifier):
 
 
 def format_case_for_filename(case_identifier):
-    """Format case identifier for use in filenames."""
-    folder, curve_name = parse_case_identifier(case_identifier)
-    if folder:
-        return f"{folder}_{curve_name}"
-    return str(case_identifier)
+    """Format case identifier for use in filenames (no path separators)."""
+    s = str(case_identifier).strip()
+    if "/" not in s:
+        return s
+    n = s.count("/")
+    if n == 1:
+        folder, curve_name = s.split("/", 1)
+        folder_short = folder.split("_")[-1] if "_" in folder else folder
+        return f"{folder_short}_{curve_name}"
+    return s.replace("/", "_")
 
 
 def save_outputs_for_case(

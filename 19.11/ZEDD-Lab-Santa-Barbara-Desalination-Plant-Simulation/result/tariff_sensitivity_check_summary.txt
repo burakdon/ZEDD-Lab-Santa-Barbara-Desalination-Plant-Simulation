@@ -1,0 +1,44 @@
+=== supply_curve_tariff_sensitivity checks ===
+Root: /Users/burakdonbekci/Desktop/ZEDD-Lab-Santa-Barbara-Desalination-Plant-Simulation/19.11/ZEDD-Lab-Santa-Barbara-Desalination-Plant-Simulation/cost_curves/supply_curve_tariff_sensitivity
+Case: 3mpd_30vessels
+hour_day_year folders: 27
+Expected CSV pairs (x2 baseline|flexible): 54
+Loaded OK: 54
+_overall.csv files (any depth): 0
+Uniform curve rows per file: 7
+
+--- Crude annual electricity USD proxies (6*summer + 6*winter same point all year) ---
+
+[baseline] annual_max_prod_usd
+  n=27 min=2,527,641 max=3,657,515 mean=2,969,552
+  std=303,224  CV%=10.21  (max-min)/mean%=38.05
+
+[baseline] annual_idle_usd
+  n=27 min=249,580 max=362,463 mean=293,858
+  std=30,249  CV%=10.29  (max-min)/mean%=38.41
+
+[baseline] annual_curve_mean_usd
+  n=27 min=1,374,019 max=2,019,617 mean=1,632,624
+  std=171,063  CV%=10.48  (max-min)/mean%=39.54
+
+[flexible] annual_max_prod_usd
+  n=27 min=2,011,888 max=3,650,286 mean=2,644,002
+  std=459,221  CV%=17.37  (max-min)/mean%=61.97
+
+[flexible] annual_idle_usd
+  n=27 min=252,517 max=366,934 mean=296,396
+  std=30,768  CV%=10.38  (max-min)/mean%=38.60
+
+[flexible] annual_curve_mean_usd
+  n=27 min=798,593 max=1,981,633 mean=1,284,824
+  std=350,858  CV%=27.31  (max-min)/mean%=92.08
+
+--- Summer vs winter water_production row pairing ---
+  max |ΔAF| across rows and scenarios: 6.933047 AF/month
+
+--- Flexible vs baseline (annual_max_prod proxy) ---
+  pct diff flex vs base: min=-25.27% max=0.19% mean=-11.30%
+
+--- CostCurveLoader integration (manual) ---
+  Today: requires *_overall.csv + non-recursive subfolder scan.
+  This tree: nested hour_day_year/baseline|flexible and no _overall.csv → not auto-discovered.
