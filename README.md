@@ -164,6 +164,8 @@ python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --list-cases
 python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --cases all
 # smoke test (tiny budget, one case):
 python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --quick --max-cases 1
+# Overlay all saved Pareto CSVs (baseline | flexible panels):
+python3 overlay_tariff_sensitivity_pareto.py --drought pers87_sev0.83n_4
 ```
 
 **Fixed desalination utilization** (no RBF policy optimization in that script’s inner loop — see module docstring):
