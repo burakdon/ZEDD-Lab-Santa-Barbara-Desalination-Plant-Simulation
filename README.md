@@ -168,6 +168,18 @@ python3 run_tariff_sensitivity_batch.py --drought pers87_sev0.83n_4 --quick --ma
 python3 overlay_tariff_sensitivity_pareto.py --drought pers87_sev0.83n_4
 ```
 
+**Constant monthly desal (baseline tariff curves only)** — same fraction sweep as the main fixed experiment (`1.0,0.8,…`), for comparison to **flexible + adaptive** NSGA-II fronts:
+
+```bash
+python3 fixed_desal_experiment/run_all_cases_fixed.py --list-tariff-sensitivity-baseline
+python3 run_tariff_sensitivity_fixed_batch.py
+# equivalent:
+python3 fixed_desal_experiment/run_all_cases_fixed.py --drought pers87_sev0.83n_4 --cases all \\
+    --tariff-sensitivity-baseline-only
+```
+
+Writes `result/fixed_desal_tariff_sensitivity/{summary.csv, by_scenario.csv, plots/...}`.
+
 **Fixed desalination utilization** (no RBF policy optimization in that script’s inner loop — see module docstring):
 
 ```bash

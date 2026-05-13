@@ -8,6 +8,10 @@ with a fixed desal production fraction (e.g., 1.0, 0.8, 0.6, 0.4, 0.2).
 Usage (from repo root):
   python fixed_desal_experiment/run_all_cases_fixed.py     --drought pers87_sev0.83n_4     --cases all     --fractions 1.0,0.8,0.6,0.4,0.2     --nsim 20     --save-timeseries
 
+  # Tariff sensitivity: baseline supply curves + fixed monthly desal fraction (vs NSGA-II flexible/adaptive):
+  python fixed_desal_experiment/run_all_cases_fixed.py --drought pers87_sev0.83n_4 \\
+      --cases all --tariff-sensitivity-baseline-only
+
 Notes:
 - Uses the repo's CostCurveLoader to discover the same cases.
 - Uses the same cost accounting path as simulation.py / sim_individual.py.
@@ -37,6 +41,20 @@ from plot_optimization import (
 )
 
 from fixed_desal_experiment.fixed_sb import SBFixed, SBsimFixed
+
+
+def tariff_sensitivity_baseline_cases(loader: CostCurveLoader) -> List[str]:
+    """Case ids: ``supply_curve_tariff_sensitivity/.../baseline/<stem>`` (constant monthly ops on baseline tariff curves)."""
+    out: List[str] = []
+    for c in loader.get_available_cases():
+        if not isinstance(c, str):
+            continue
+        if not c.startswith("supply_curve_tariff_sensitivity/"):
+            continue
+        if "/baseline/" not in c:
+            continue
+        out.append(c)
+    return sorted(out)
 
 
 def parse_case_identifier(case_identifier):
@@ -107,16 +125,45 @@ def _plot_case_curves(df_case: pd.DataFrame, case_label: str, outdir: str) -> No
 
 def main():
     parser = argparse.ArgumentParser(description='Batch-run fixed desal fractions over cost curve cases')
-    parser.add_argument('--drought', required=True, help='Drought type, e.g., pers87_sev0.83n_4')
-    parser.add_argument('--cases', nargs='+', required=True, help='"all" or list of case identifiers')
+    parser.add_argument(
+        '--drought',
+        default=None,
+        help='Drought type, e.g., pers87_sev0.83n_4 (not needed with --list-cases / --list-tariff-sensitivity-baseline)',
+    )
+    parser.add_argument(
+        '--cases',
+        nargs='+',
+        default=None,
+        help='"all" or list of case identifiers (not needed with list-only flags)',
+    )
     parser.add_argument('--fractions', default='1.0,0.8,0.6,0.4,0.2', help='Comma-separated fractions')
     parser.add_argument('--nsim', type=int, default=20, help='Number of hydrological scenarios')
     parser.add_argument('--save-timeseries', action='store_true', help='Save scenario-0 timeseries for each fraction')
     parser.add_argument('--list-cases', action='store_true', help='List available cost curve cases and exit')
+    parser.add_argument(
+        '--tariff-sensitivity-baseline-only',
+        action='store_true',
+        help=(
+            'After resolving --cases, keep only supply_curve_tariff_sensitivity/**/baseline/* '
+            '(constant monthly desal fraction on baseline tariff curves; compare to flexible NSGA-II runs).'
+        ),
+    )
+    parser.add_argument(
+        '--list-tariff-sensitivity-baseline',
+        action='store_true',
+        help='List tariff-sensitivity baseline case ids and exit',
+    )
     parser.add_argument('--outdir', default='result/fixed_desal', help='Output directory')
     args = parser.parse_args()
 
     loader = CostCurveLoader()
+    if args.list_tariff_sensitivity_baseline:
+        cases_tb = tariff_sensitivity_baseline_cases(loader)
+        print(f'Tariff sensitivity baseline cases ({len(cases_tb)}):')
+        for c in cases_tb:
+            print(f'  {c}')
+        return
+
     if args.list_cases:
         print('Available cost curve cases:')
         for case in loader.get_available_cases():
@@ -127,6 +174,11 @@ def main():
             else:
                 print(f"  {case}")
         return
+
+    if args.drought is None:
+        parser.error('--drought is required for batch runs')
+    if args.cases is None:
+        parser.error('--cases is required for batch runs')
 
     # Resolve case list
     if len(args.cases) == 1 and args.cases[0].lower() == 'all':
@@ -142,6 +194,20 @@ def main():
             else:
                 cases.append(c)
 
+    if args.tariff_sensitivity_baseline_only:
+        allowed = set(tariff_sensitivity_baseline_cases(loader))
+        cases = [c for c in cases if c in allowed]
+        if not cases:
+            print(
+                'No cases left after --tariff-sensitivity-baseline-only filter. '
+                'Ensure cost_curves/supply_curve_tariff_sensitivity/**/baseline/*_overall.csv exist.'
+            )
+            return
+        print(
+            f'Tariff sensitivity baseline only: {len(cases)} cases '
+            f'(constant monthly desal fractions {args.fractions}).'
+        )
+
     fractions = _parse_fractions(args.fractions)
 
     # Set up parameters
@@ -149,6 +215,9 @@ def main():
     opt_par.nsim = int(args.nsim)
 
     outdir = args.outdir
+    if args.tariff_sensitivity_baseline_only and outdir == 'result/fixed_desal':
+        outdir = 'result/fixed_desal_tariff_sensitivity'
+    print(f'Output directory: {outdir}')
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(os.path.join(outdir, 'plots'), exist_ok=True)
     if args.save_timeseries:
